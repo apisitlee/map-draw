@@ -1,0 +1,6 @@
+{
+  "name": "绘·图 (Map Draw)",
+  "description": "功能强大的地图标注与绘图工具，支持高德地图、图层与文件夹管理、多样绘图工具、属性检查器、样式定制与撤销重做。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

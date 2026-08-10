@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>绘·图 (map draw)</title>
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23007AFF'><path d='M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5-2.5z'/></svg>">
+    <!-- 高德地图安全密钥配置与 JS API 2.0 -->
+    <script type="text/javascript">
+      window._AMapSecurityConfig = {
+        securityJsCode: '6a98ab29d2bdd25e6738c18f65850691'
+      }
+    </script>
+    <script src="https://webapi.amap.com/maps?v=2.0&key=4582e7128438e0910f1357a4071ced92&plugin=AMap.PolylineEditor,AMap.PolygonEditor,AMap.RectangleEditor,AMap.CircleEditor,AMap.MouseTool"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
