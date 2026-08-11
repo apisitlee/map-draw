@@ -182,6 +182,11 @@ export const MapCanvas: React.FC = () => {
     if (!ctx) return;
 
     const handleMouseDown = (e: MouseEvent) => {
+      // ✅ 新增：如果事件已经被 AMap 的图层元素处理并标记，则直接跳过，绝不生成选框！
+      if ((e as any)._isOverlayTarget) {
+        return;
+      }
+
       if (
         mouseInteractionMode !== 'select' ||
         isSpacePressed ||

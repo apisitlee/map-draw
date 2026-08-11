@@ -1270,7 +1270,33 @@ export const MapProvider: React.FC<{ children: ReactNode }> = ({ children }: { c
     mapInstance.add(overlay);
     mapInstance.setFitView();
 
-    overlay.on('click', (e: any) => selectLayer(item.id, e.originEvent));
+    // overlay.on('click', (e: any) => selectLayer(item.id, e.originEvent));
+    const handleOverlaySelect = (e: any) => {
+      // 为原生事件对象打上标记，通知 MapCanvas 不要生成选框
+      if (e.originEvent) {
+        (e.originEvent as any)._isOverlayTarget = true;
+      }
+      // 在选择模式下，鼠标按下时立即选中该图层
+      if (mouseInteractionModeRef.current === 'select') {
+        selectLayer(item.id, e.originEvent);
+      }
+    };
+
+    if (overlay.on) {
+      overlay.on('mousedown', handleOverlaySelect); // 处理按下和拖拽前置
+      overlay.on('click', handleOverlaySelect);     // 保留 click 以兼容部分交互逻辑
+
+      // 保持原有的 dragend 监听不变
+      overlay.on('dragend', (e: any) => {
+        if (layerObj.data.location) {
+          layerObj.data.location = [e.lnglat.lng, e.lnglat.lat];
+        }
+        if (item.type === 'point' || item.type === 'station') {
+          renderSinglePointLayerInternal(item.id);
+        }
+        pushSnapshot();
+      });
+    }
 
     if (flash) {
       setTimeout(() => {
@@ -1606,7 +1632,20 @@ export const MapProvider: React.FC<{ children: ReactNode }> = ({ children }: { c
     layerMapRef.current.set(newId, layerObj);
     setLayerTree((prev) => [newId, ...prev]);
 
-    overlay.on('click', (e: any) => selectLayer(newId, e.originEvent));
+    // overlay.on('click', (e: any) => selectLayer(newId, e.originEvent));
+    const handleOverlaySelect = (e: any) => {
+      if (e.originEvent) {
+        (e.originEvent as any)._isOverlayTarget = true;
+      }
+      if (mouseInteractionModeRef.current === 'select') {
+        selectLayer(newId, e.originEvent);
+      }
+    };
+
+    if (overlay.on) {
+      overlay.on('mousedown', handleOverlaySelect);
+      overlay.on('click', handleOverlaySelect);
+    }
 
     if (tool === 'image') {
       renderImageLayerInternal(newId);
