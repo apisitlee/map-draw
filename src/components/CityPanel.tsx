@@ -66,11 +66,10 @@ export const CityPanel: React.FC = () => {
           {CITIES.map((city) => (
             <div
               key={city}
-              className={`py-2 text-center text-xs font-medium rounded-xl cursor-pointer transition-all ${
-                currentCity === city
-                  ? 'bg-[#007AFF] text-white font-semibold'
-                  : 'bg-black/5 text-[#1c1c1e] hover:bg-[#007AFF]/15 hover:text-[#007AFF]'
-              }`}
+              className={`py-2 text-center text-xs font-medium rounded-xl cursor-pointer transition-all ${currentCity === city
+                ? 'bg-[#007AFF] text-white font-semibold'
+                : 'bg-black/5 text-[#1c1c1e] hover:bg-[#007AFF]/15 hover:text-[#007AFF]'
+                }`}
               onClick={() => selectCity(city)}
             >
               {city}

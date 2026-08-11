@@ -35,6 +35,8 @@ export interface LayerItemData {
   path?: [number, number][];
   viaStops?: ViaStop[];
   buslines?: Busline[];
+  radius?: number;
+  stops?: any[];
 }
 
 export interface LayerStyle {

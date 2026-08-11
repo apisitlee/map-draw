@@ -1912,7 +1912,7 @@ export const MapProvider: React.FC<{ children: ReactNode }> = ({ children }: { c
         strokeWeight: parseInt(s.borderWidth as any, 10),
         strokeOpacity: parseFloat(s.opacity as any),
         fillColor: s.fillColor,
-        fillOpacity: parseFloat(s.fillOpacity !== undefined ? s.fillOpacity : s.opacity),
+        fillOpacity: parseFloat(s.fillOpacity !== undefined ? String(s.fillOpacity) : String(s.opacity)),
         strokeStyle: s.borderStyle === 'solid' ? 'solid' : 'dashed',
         strokeDasharray: strokeDash,
       });

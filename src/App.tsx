@@ -14,6 +14,7 @@ import { ColorPickerModal } from './components/ColorPickerModal';
 const MapAppContent: React.FC = () => {
   const {
     setIsCityPanelOpen,
+    isSearchPanelOpen,
     setIsSearchPanelOpen,
     setIsExportModalOpen,
     deactivateDrawTools,
@@ -51,7 +52,7 @@ const MapAppContent: React.FC = () => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         if (!isPureMap) {
-          setIsSearchPanelOpen((prev) => !prev);
+          setIsSearchPanelOpen(!isSearchPanelOpen);
         }
       }
 
@@ -102,6 +103,7 @@ const MapAppContent: React.FC = () => {
     removeLayerFromMap,
     setIsCityPanelOpen,
     setIsExportModalOpen,
+    isSearchPanelOpen,
     setIsSearchPanelOpen,
     setFocusedLayerId,
     setMultiSelectedLayerIds,
