@@ -117,11 +117,10 @@ export const LayerPanel: React.FC = () => {
         return (
           <div key={folder.id} className="mb-1">
             <div
-              className={`flex items-center justify-between p-1.5 rounded-lg border transition-all cursor-pointer ${
-                isDragOver
-                  ? 'bg-[#007AFF]/15 border-dashed border-[#007AFF]'
-                  : 'bg-black/5 hover:bg-black/10 border-black/5'
-              }`}
+              className={`flex items-center justify-between p-1.5 rounded-lg border transition-all cursor-pointer ${isDragOver
+                ? 'bg-[#007AFF]/15 border-dashed border-[#007AFF]'
+                : 'bg-black/5 hover:bg-black/10 border-black/5'
+                }`}
               onClick={(e) => toggleFolderCollapse(folder.id, e)}
               onContextMenu={(e) => handleContextMenu(e, folder.id)}
               onDragOver={(e) => {
@@ -179,42 +178,38 @@ export const LayerPanel: React.FC = () => {
             key={id}
             draggable={!locked}
             onDragStart={(e) => e.dataTransfer.setData('text/plain', id)}
-            className={`flex items-center justify-between p-1.5 mb-1 rounded-lg border transition-all cursor-pointer select-none ${
-              !visible ? 'opacity-50 bg-black/5' : 'bg-white/70'
-            } ${locked ? 'bg-black/10 cursor-not-allowed' : 'hover:bg-black/10'} ${
-              isFocused ? 'bg-[#007AFF]/20 border-[#007AFF]/30' : 'border-transparent'
-            } ${isMulti ? 'bg-emerald-500/20 border-dashed border-emerald-500' : ''}`}
+            className={`flex items-center justify-between p-1.5 mb-1 rounded-lg border transition-all cursor-pointer select-none ${!visible ? 'opacity-50 bg-black/5' : ''
+              } ${locked ? 'bg-black/10 cursor-not-allowed' : 'hover:bg-black/10'} ${isFocused ? 'bg-[#007AFF] border-[#007AFF] text-white' : 'text-[#1c1c1e] border-transparent'
+              } ${isMulti ? 'bg-emerald-500/20 border-dashed border-emerald-500' : ''}`}
             onClick={(e) => selectLayer(id, e)}
             onContextMenu={(e) => handleContextMenu(e, id)}
           >
             <div className="flex items-center gap-1.5 flex-1 overflow-hidden">
               <GripVertical className="w-3 h-3 text-[#c7c7cc] shrink-0" />
               <div
-                className={`w-5 h-5 rounded flex items-center justify-center text-[10px] shrink-0 ${
-                  data.type === 'line' || data.type === 'pen'
-                    ? 'bg-emerald-100 text-emerald-600'
-                    : data.type === 'station'
+                className={`w-5 h-5 rounded flex items-center justify-center text-[10px] shrink-0 ${data.type === 'line' || data.type === 'pen'
+                  ? 'bg-emerald-100 text-emerald-600'
+                  : data.type === 'station'
                     ? 'bg-amber-100 text-amber-600'
                     : 'bg-blue-100 text-[#007AFF]'
-                }`}
+                  }`}
               >
                 {getLayerIcon(data.type)}
               </div>
-              <span className="text-xs text-[#1c1c1e] truncate max-w-[120px]">{data.name}</span>
+              <span className="text-xs truncate max-w-[120px]">{data.name}</span>
             </div>
 
             <div className="flex items-center gap-0.5 opacity-80 hover:opacity-100" onClick={(e) => e.stopPropagation()}>
               <button
-                className={`w-6 h-6 rounded-md hover:bg-black/10 flex items-center justify-center text-xs cursor-pointer ${
-                  locked ? 'text-[#ff3b30]' : 'text-[#8e8e93]'
-                }`}
+                className={`w-6 h-6 rounded-md hover:bg-black/10 flex items-center justify-center text-xs cursor-pointer ${locked ? 'text-[#ff3b30]' : ''
+                  }`}
                 onClick={(e) => toggleLayerLock(id, e)}
                 title={locked ? '解锁图层' : '锁定图层'}
               >
                 {locked ? <Lock className="w-3.5 h-3.5" /> : <LockOpen className="w-3.5 h-3.5" />}
               </button>
               <button
-                className="w-6 h-6 rounded-md hover:bg-black/10 text-[#8e8e93] hover:text-[#1c1c1e] flex items-center justify-center text-xs cursor-pointer"
+                className="w-6 h-6 rounded-md hover:bg-black/10 hover:text-[#1c1c1e] flex items-center justify-center text-xs cursor-pointer"
                 onClick={(e) => toggleLayerVisibility(id, e)}
                 title={visible ? '隐藏' : '显示'}
               >

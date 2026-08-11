@@ -185,7 +185,7 @@ export function useMap() {
 
 const MAX_HISTORY_SIZE = 30;
 
-export const MapProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+export const MapProvider: React.FC<{ children: ReactNode }> = ({ children }: { children: ReactNode }) => {
   const [mapInstance, setMapInstance] = useState<any>(null);
   const [mouseTool, setMouseTool] = useState<any>(null);
 
@@ -237,129 +237,35 @@ export const MapProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const mouseInteractionModeRef = useRef(mouseInteractionMode);
   const isSpacePressedRef = useRef(isSpacePressed);
-  const currentActiveToolRef = useRef(currentActiveTool);
-
   useEffect(() => {
     mouseInteractionModeRef.current = mouseInteractionMode;
     isSpacePressedRef.current = isSpacePressed;
     currentActiveToolRef.current = currentActiveTool;
   }, [mouseInteractionMode, isSpacePressed, currentActiveTool]);
 
-  // Vector shape dragging state
-  const isDraggingVectorRef = useRef<boolean>(false);
-  const draggingLayerIdRef = useRef<string | null>(null);
-  const dragStartLngLatRef = useRef<[number, number] | null>(null);
-  const initialPathRef = useRef<[number, number][] | null>(null);
-  const initialLocationRef = useRef<[number, number] | null>(null);
-
   const attachVectorDragListeners = (layerObj: LayerObject) => {
     const overlay = layerObj.overlay;
     if (!overlay || !overlay.on || (overlay as any)._hasVectorDragListener) return;
+
+    // Keep vector geometry in application state in sync with AMap's native
+    // dragging, just as Marker does for image and text layers.
+    if (!['line', 'pen', 'rectangle', 'circle', 'polygon'].includes(layerObj.data.type)) return;
     (overlay as any)._hasVectorDragListener = true;
 
-    overlay.on('mousedown', (e: any) => {
-      const isPanMode = mouseInteractionModeRef.current === 'pan' || isSpacePressedRef.current;
-      if (
-        isPanMode ||
-        currentActiveToolRef.current !== null ||
-        layerObj.locked ||
-        !layerObj.visible
-      ) {
-        return;
+    overlay.on('dragend', () => {
+      if (layerObj.locked) return;
+      if (overlay.getPath) {
+        const path = overlay.getPath();
+        if (path) layerObj.data.path = path.map((point: any) => [point.lng, point.lat]);
       }
-
-      isDraggingVectorRef.current = true;
-      draggingLayerIdRef.current = layerObj.data.id;
-
-      if (e.lnglat) {
-        dragStartLngLatRef.current = [e.lnglat.lng, e.lnglat.lat];
-      } else if (mapInstance && e.originEvent) {
-        const windowAMap = (window as any).AMap;
-        if (windowAMap && mapInstance.containerToLngLat) {
-          const p = mapInstance.containerToLngLat(
-            new windowAMap.Pixel(e.originEvent.clientX, e.originEvent.clientY)
-          );
-          if (p) dragStartLngLatRef.current = [p.lng, p.lat];
-        }
+      if (overlay.getCenter) {
+        const center = overlay.getCenter();
+        if (center) layerObj.data.location = [center.lng, center.lat];
       }
-
-      if (layerObj.data.path && Array.isArray(layerObj.data.path)) {
-        initialPathRef.current = layerObj.data.path.map((pt) => [pt[0], pt[1]]);
-      } else {
-        initialPathRef.current = null;
-      }
-
-      if (layerObj.data.location && Array.isArray(layerObj.data.location)) {
-        initialLocationRef.current = [layerObj.data.location[0], layerObj.data.location[1]];
-      } else {
-        initialLocationRef.current = null;
-      }
+      pushSnapshot();
+      forceUpdateLayers();
     });
   };
-
-  useEffect(() => {
-    if (!mapInstance) return;
-
-    const handleMapMouseMove = (e: any) => {
-      if (!isDraggingVectorRef.current || !draggingLayerIdRef.current || !dragStartLngLatRef.current) {
-        return;
-      }
-
-      const layer = layerMapRef.current.get(draggingLayerIdRef.current);
-      if (!layer || layer.locked) return;
-
-      const currentLngLat = e.lnglat ? [e.lnglat.lng, e.lnglat.lat] : null;
-      if (!currentLngLat) return;
-
-      const deltaLng = currentLngLat[0] - dragStartLngLatRef.current[0];
-      const deltaLat = currentLngLat[1] - dragStartLngLatRef.current[1];
-
-      if (initialPathRef.current) {
-        const newPath: [number, number][] = initialPathRef.current.map(([lng, lat]) => [
-          lng + deltaLng,
-          lat + deltaLat,
-        ]);
-        const windowAMap = (window as any).AMap;
-        if (windowAMap && layer.overlay.setPath) {
-          layer.overlay.setPath(newPath.map((pt) => new windowAMap.LngLat(pt[0], pt[1])));
-        }
-        layer.data.path = newPath;
-      }
-
-      if (initialLocationRef.current) {
-        const newLoc: [number, number] = [
-          initialLocationRef.current[0] + deltaLng,
-          initialLocationRef.current[1] + deltaLat,
-        ];
-        if (layer.overlay.setPosition) {
-          layer.overlay.setPosition(newLoc);
-        } else if (layer.overlay.setCenter) {
-          layer.overlay.setCenter(newLoc);
-        }
-        layer.data.location = newLoc;
-      }
-    };
-
-    const handleMapMouseUp = () => {
-      if (isDraggingVectorRef.current) {
-        isDraggingVectorRef.current = false;
-        draggingLayerIdRef.current = null;
-        dragStartLngLatRef.current = null;
-        initialPathRef.current = null;
-        initialLocationRef.current = null;
-        pushSnapshot();
-        forceUpdateLayers();
-      }
-    };
-
-    mapInstance.on('mousemove', handleMapMouseMove);
-    mapInstance.on('mouseup', handleMapMouseUp);
-
-    return () => {
-      mapInstance.off('mousemove', handleMapMouseMove);
-      mapInstance.off('mouseup', handleMapMouseUp);
-    };
-  }, [mapInstance]);
 
   // Space key listener for temporary pan mode
   useEffect(() => {
@@ -396,12 +302,34 @@ export const MapProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   useEffect(() => {
     if (!mapInstance) return;
     const isPanMode = mouseInteractionMode === 'pan' || isSpacePressed;
+    const setDefaultCursorGrab = () => mapInstance.setDefaultCursor('grab');
+    const setDefaultCursorGrabbing = () => mapInstance.setDefaultCursor('grabbing');
+    const setDefaultCursorDefault = () => mapInstance.setDefaultCursor('default');
+    const setDefaultCursorCrosshair = () => mapInstance.setDefaultCursor('crosshair');
     try {
       mapInstance.setStatus({ dragEnable: isPanMode });
       if (isPanMode) {
-        mapInstance.setDefaultCursor('grab');
+        setDefaultCursorGrab();
+        mapInstance.on('dragging', setDefaultCursorGrabbing);
+        mapInstance.on('dragend', setDefaultCursorGrab);
       } else {
-        mapInstance.setDefaultCursor('default');
+        if (currentActiveToolRef.current) {
+          switch (currentActiveToolRef.current) {
+            case 'rectangle':
+            case 'circle':
+            case 'polygon':
+            case 'image':
+            case 'pen':
+            case 'text':
+              setDefaultCursorCrosshair();
+              break;
+            default:
+              setDefaultCursorDefault();
+              break;
+          }
+        } else {
+          setDefaultCursorDefault();
+        }
       }
 
       layerMapRef.current.forEach((layer) => {
@@ -409,6 +337,10 @@ export const MapProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       });
     } catch (e) {
       console.error('Error updating map drag status:', e);
+    }
+    return () => {
+      mapInstance.off('dragging', setDefaultCursorGrabbing);
+      mapInstance.off('dragend', setDefaultCursorGrab);
     }
   }, [mapInstance, mouseInteractionMode, isSpacePressed, currentActiveTool]);
 
@@ -553,6 +485,7 @@ export const MapProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     snapshot.layers.forEach((item: any) => {
       if (item.overlayPath) item.data.path = item.overlayPath;
       if (item.position) item.data.location = item.position;
+      if (item.overlayRadius !== null && item.overlayRadius !== undefined) item.data.radius = item.overlayRadius;
 
       addLayerToMapInternal(item.data, false);
       const layer = layerMapRef.current.get(item.id);
@@ -580,6 +513,12 @@ export const MapProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         else if (item.data.type === 'line') renderStationElementsInternal(item.id);
         else if (item.data.type === 'image') renderImageLayerInternal(item.id);
         else if (item.data.type === 'text') renderTextLayerInternal(item.id);
+
+        const visibilityMethod = layer.visible ? 'show' : 'hide';
+        layer.overlay[visibilityMethod]?.();
+        layer.labelMarkers?.forEach((marker) => marker[visibilityMethod]?.());
+        layer.stationMarkers?.forEach((marker) => marker[visibilityMethod]?.());
+        layer.endpointMarkers?.forEach((marker) => marker[visibilityMethod]?.());
 
         applyLayerTransformsInternal(layer);
       }
@@ -615,16 +554,16 @@ export const MapProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, []);
 
   // Save state helper
-  const persistState = () => {
+  const persistState = (overrides: Partial<{ mapStyle: string; activeCoreFeatures: string[] }> = {}) => {
     if (!mapInstance) return;
     const center = mapInstance.getCenter();
     saveMapStateToStorage({
       center: [center.lng, center.lat],
       zoom: mapInstance.getZoom(),
       rotation: mapInstance.getRotation(),
-      mapStyle: currentMapStyle,
+      mapStyle: overrides.mapStyle ?? currentMapStyle,
       globalTextConfig,
-      activeCoreFeatures: Array.from(activeCoreFeatures),
+      activeCoreFeatures: overrides.activeCoreFeatures ?? Array.from(activeCoreFeatures),
     });
   };
 
@@ -644,16 +583,16 @@ export const MapProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const applyMapTheme = (styleUrl: string) => {
     setCurrentMapStyle(styleUrl);
     if (mapInstance) mapInstance.setMapStyle(styleUrl);
-    persistState();
+    persistState({ mapStyle: styleUrl });
   };
 
   const toggleFeatureGroup = (key: string, enabled: boolean) => {
-    const updated = new Set(activeCoreFeatures);
+    const updated = new Set<string>(activeCoreFeatures);
     if (enabled) updated.add(key);
     else updated.delete(key);
     setActiveCoreFeatures(updated);
     if (mapInstance) mapInstance.setFeatures(Array.from(updated));
-    persistState();
+    persistState({ activeCoreFeatures: Array.from(updated) });
   };
 
   const applyPreset = (presetKey: string) => {
@@ -667,7 +606,7 @@ export const MapProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const updated = new Set(features);
     setActiveCoreFeatures(updated);
     if (mapInstance) mapInstance.setFeatures(features);
-    persistState();
+    persistState({ activeCoreFeatures: Array.from(updated) });
   };
 
   const saveNewPreset = (name: string) => {
@@ -756,6 +695,8 @@ export const MapProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     deactivateDrawTools();
     setCurrentActiveTool(toolType);
+
+    setMouseInteractionMode('select');
 
     switch (toolType) {
       case 'rectangle':
@@ -903,9 +844,11 @@ export const MapProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const applyLayerDraggableStateInternal = (layer: LayerObject) => {
     if (!layer || !layer.overlay) return;
     const isPan = mouseInteractionModeRef.current === 'pan' || isSpacePressedRef.current;
-    const canDrag = !isPan && !layer.locked && layer.data.type !== 'line';
+    const canDrag = !isPan && !layer.locked && currentActiveToolRef.current === null;
     if (layer.overlay.setDraggable) {
       layer.overlay.setDraggable(canDrag);
+    } else if (layer.overlay.setOptions) {
+      layer.overlay.setOptions({ draggable: canDrag });
     }
     attachVectorDragListeners(layer);
   };
@@ -1046,12 +989,12 @@ export const MapProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const iconUrl = s.textureUrl
           ? s.textureUrl
           : buildStationIconSvg(
-              s.shape,
-              s.color,
-              s.size,
-              s.iconBorderColor || '#ffffff',
-              s.iconBorderWidth !== undefined ? s.iconBorderWidth : 2
-            );
+            s.shape,
+            s.color,
+            s.size,
+            s.iconBorderColor || '#ffffff',
+            s.iconBorderWidth !== undefined ? s.iconBorderWidth : 2
+          );
         const iconMarker = new windowAMap.Marker({
           position: stopPos,
           icon: new windowAMap.Icon({
@@ -1094,7 +1037,10 @@ export const MapProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           anchor: anchor,
           offset: new windowAMap.Pixel(offsetX, offsetY),
           zIndex: 130,
-          draggable: !layer.locked,
+          draggable:
+            !layer.locked &&
+            mouseInteractionModeRef.current !== 'pan' &&
+            !isSpacePressedRef.current,
           style: createTextStyleObject(s),
         });
 
@@ -1174,21 +1120,24 @@ export const MapProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (!layer) return;
     const s = layer.imageStyle;
 
-    const imgDiv = document.createElement('div');
-    imgDiv.style.width = `${s.size}px`;
-    imgDiv.style.height = `${s.size}px`;
-    imgDiv.style.opacity = `${s.opacity}`;
-    imgDiv.style.backgroundImage = `url(${s.imageUrl})`;
-    imgDiv.style.backgroundSize = 'cover';
-    imgDiv.style.backgroundPosition = 'center';
-    imgDiv.style.borderRadius = `${s.borderRadius}px`;
+    const img = document.createElement('img');
+    // Use the selected image's intrinsic dimensions instead of a square
+    // background box, so a newly-added image keeps its original aspect ratio.
+    img.src = s.imageUrl;
+    img.alt = layer.data.name || '图片标记';
+    img.style.width = `${s.size}px`;
+    img.style.height = 'auto';
+    img.style.display = 'block';
+    img.style.opacity = `${s.opacity}`;
+    img.style.objectFit = 'contain';
+    img.style.borderRadius = `${s.borderRadius}px`;
 
     if (s.borderWidth > 0) {
-      imgDiv.style.border = `${s.borderWidth}px ${s.borderStyle} ${s.borderColor}`;
+      img.style.border = `${s.borderWidth}px ${s.borderStyle} ${s.borderColor}`;
     }
 
     if (layer.overlay.setContent) {
-      layer.overlay.setContent(imgDiv);
+      layer.overlay.setContent(img);
     }
     applyOverlayAnchorInternal(layer, s.anchor);
     applyLayerTransformsInternal(layer);
@@ -1272,6 +1221,40 @@ export const MapProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         borderWeight: defaultStyle.borderWeight,
         isOutline: defaultStyle.borderWeight > 0,
         outlineColor: defaultStyle.borderColor,
+      });
+    } else if (item.type === 'rectangle') {
+      const path = item.path || [];
+      const lngs = path.map(([lng]) => lng);
+      const lats = path.map(([, lat]) => lat);
+      overlay = new windowAMap.Rectangle({
+        bounds:
+          path.length > 0
+            ? [
+              [Math.min(...lngs), Math.min(...lats)],
+              [Math.max(...lngs), Math.max(...lats)],
+            ]
+            : undefined,
+        strokeColor: '#007AFF',
+        strokeWeight: 2,
+        fillColor: '#007AFF',
+        fillOpacity: 0.3,
+      });
+    } else if (item.type === 'polygon') {
+      overlay = new windowAMap.Polygon({
+        path: item.path || [],
+        strokeColor: '#007AFF',
+        strokeWeight: 2,
+        fillColor: '#007AFF',
+        fillOpacity: 0.3,
+      });
+    } else if (item.type === 'circle') {
+      overlay = new windowAMap.Circle({
+        center: item.location || [116.397428, 39.90923],
+        radius: item.radius ?? 1000,
+        strokeColor: '#007AFF',
+        strokeWeight: 2,
+        fillColor: '#007AFF',
+        fillOpacity: 0.3,
       });
     } else {
       const targetLocation = item.location && Array.isArray(item.location) ? item.location : [116.397428, 39.90923];
@@ -1390,7 +1373,7 @@ export const MapProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (overlay && mapInstance) {
         try {
           mapInstance.remove(overlay);
-        } catch (e) {}
+        } catch (e) { }
       }
       deactivateDrawTools();
       return;
@@ -1461,6 +1444,7 @@ export const MapProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const c = overlay.getCenter();
         if (c) center = [c.lng, c.lat];
       }
+      const radius = overlay.getRadius ? overlay.getRadius() : 1000;
       itemData = {
         id: newId,
         name: '新建圆形',
@@ -1470,6 +1454,7 @@ export const MapProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         iconClass: 'fa-regular font-circle',
         iconBgClass: 'icon-shape',
         location: center,
+        radius,
       };
     } else if (tool === 'polygon') {
       let path: [number, number][] = [];
@@ -1783,7 +1768,7 @@ export const MapProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               includePoint(pxNE);
             }
           }
-        } catch (e) {}
+        } catch (e) { }
       }
 
       // 5. Check DOM bounding box if available
@@ -1801,7 +1786,7 @@ export const MapProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               }
             }
           }
-        } catch (e) {}
+        } catch (e) { }
       }
 
       // Check AABB intersection
@@ -2637,6 +2622,7 @@ export const MapProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       importedData.layers.forEach((item: any) => {
         if (item.overlayPath) item.data.path = item.overlayPath;
         if (item.position) item.data.location = item.position;
+        if (item.overlayRadius !== null && item.overlayRadius !== undefined) item.data.radius = item.overlayRadius;
 
         addLayerToMapInternal(item.data, false);
         const layer = layerMapRef.current.get(item.id);
@@ -2664,6 +2650,12 @@ export const MapProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           else if (item.data.type === 'line') renderStationElementsInternal(item.id);
           else if (item.data.type === 'image') renderImageLayerInternal(item.id);
           else if (item.data.type === 'text') renderTextLayerInternal(item.id);
+
+          const visibilityMethod = layer.visible ? 'show' : 'hide';
+          layer.overlay[visibilityMethod]?.();
+          layer.labelMarkers?.forEach((marker) => marker[visibilityMethod]?.());
+          layer.stationMarkers?.forEach((marker) => marker[visibilityMethod]?.());
+          layer.endpointMarkers?.forEach((marker) => marker[visibilityMethod]?.());
 
           applyLayerDraggableStateInternal(layer);
           applyLayerTransformsInternal(layer);

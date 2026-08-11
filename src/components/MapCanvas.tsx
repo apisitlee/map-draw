@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { useMap } from '../context/MapContext';
 import { Layers, Info, Sparkles, BoxSelect, Copy, Trash2, X } from 'lucide-react';
+import { getSavedMapState } from '../services/mapPresets';
 
 export const MapCanvas: React.FC = () => {
   const {
@@ -28,6 +29,8 @@ export const MapCanvas: React.FC = () => {
     isSpacePressed,
     currentActiveTool,
     selectLayersInBox,
+    setFocusedLayerId,
+    setMultiSelectedLayerIds,
   } = useMap();
 
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -38,6 +41,12 @@ export const MapCanvas: React.FC = () => {
   const marqueeStartRef = useRef<{ x: number; y: number } | null>(null);
   const marqueeCurrentRef = useRef<{ x: number; y: number } | null>(null);
   const isMarqueeActiveRef = useRef<boolean>(false);
+  const savedMapStateRef = useRef(getSavedMapState());
+  const addCustomDrawOverlayRef = useRef(addCustomDrawOverlayToLayer);
+
+  useEffect(() => {
+    addCustomDrawOverlayRef.current = addCustomDrawOverlayToLayer;
+  }, [addCustomDrawOverlayToLayer]);
 
   // Initialize Map
   useEffect(() => {
@@ -46,10 +55,12 @@ export const MapCanvas: React.FC = () => {
     const windowAMap = (window as any).AMap;
     if (!windowAMap) return;
 
+    let disposed = false;
+    let mouseTool: any = null;
     const map = new windowAMap.Map(mapContainerRef.current, {
-      zoom: 12,
-      center: [116.397428, 39.90923],
-      rotation: 0,
+      zoom: savedMapStateRef.current?.zoom ?? 12,
+      center: savedMapStateRef.current?.center ?? [116.397428, 39.90923],
+      rotation: savedMapStateRef.current?.rotation ?? 0,
       features: Array.from(activeCoreFeatures),
       viewMode: '2D',
       rotateEnable: true,
@@ -59,22 +70,30 @@ export const MapCanvas: React.FC = () => {
 
     setMapInstance(map);
 
-    windowAMap.plugin(['AMap.MouseTool'], () => {
-      const mouseTool = new windowAMap.MouseTool(map);
-      setMouseTool(mouseTool);
+    const handleDraw = (e: any) => {
+      if (disposed) return;
+      const overlay = e.obj;
+      addCustomDrawOverlayRef.current(overlay);
+      try {
+        mouseTool?.close(false);
+      } catch (err) {
+        console.error('Error closing mouseTool after draw:', err);
+      }
+    };
 
-      mouseTool.on('draw', (e: any) => {
-        const overlay = e.obj;
-        addCustomDrawOverlayToLayer(overlay);
-        try {
-          mouseTool.close(false);
-        } catch (err) {
-          console.error('Error closing mouseTool after draw:', err);
-        }
-      });
+    windowAMap.plugin(['AMap.MouseTool'], () => {
+      if (disposed) return;
+      mouseTool = new windowAMap.MouseTool(map);
+      setMouseTool(mouseTool);
+      mouseTool.on('draw', handleDraw);
     });
 
     return () => {
+      disposed = true;
+      if (mouseTool) {
+        mouseTool.off?.('draw', handleDraw);
+        mouseTool.close?.(false);
+      }
       map.destroy();
     };
   }, []);
@@ -88,8 +107,9 @@ export const MapCanvas: React.FC = () => {
     if (!ctx) return;
 
     const resizeCanvas = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = Math.round(rect.width);
+      canvas.height = Math.round(rect.height);
     };
 
     window.addEventListener('resize', resizeCanvas);
@@ -97,13 +117,15 @@ export const MapCanvas: React.FC = () => {
 
     const handleMouseDown = (e: MouseEvent) => {
       if (!isBoxSelectingNodes) return;
-      boxSelectStartPxRef.current = { x: e.clientX, y: e.clientY };
-      boxSelectEndPxRef.current = { x: e.clientX, y: e.clientY };
+      const rect = canvas.getBoundingClientRect();
+      boxSelectStartPxRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+      boxSelectEndPxRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
     };
 
     const handleMouseMove = (e: MouseEvent) => {
       if (!isBoxSelectingNodes || !boxSelectStartPxRef.current) return;
-      boxSelectEndPxRef.current = { x: e.clientX, y: e.clientY };
+      const rect = canvas.getBoundingClientRect();
+      boxSelectEndPxRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.fillStyle = 'rgba(0, 122, 255, 0.15)';
@@ -126,7 +148,13 @@ export const MapCanvas: React.FC = () => {
       const minY = Math.min(boxSelectStartPxRef.current.y, boxSelectEndPxRef.current.y);
       const maxY = Math.max(boxSelectStartPxRef.current.y, boxSelectEndPxRef.current.y);
 
-      calculateSelectedNodesInBox(minX, maxX, minY, maxY);
+      const canvasRect = canvas.getBoundingClientRect();
+      calculateSelectedNodesInBox(
+        minX + canvasRect.left,
+        maxX + canvasRect.left,
+        minY + canvasRect.top,
+        maxY + canvasRect.top
+      );
 
       boxSelectStartPxRef.current = null;
       boxSelectEndPxRef.current = null;
@@ -167,36 +195,31 @@ export const MapCanvas: React.FC = () => {
       const target = e.target as HTMLElement;
       if (!target) return;
 
+      const eventPath = e.composedPath ? e.composedPath() : [target];
+      const pathElements = eventPath.filter((node): node is Element => node instanceof Element);
+
       // Ignore UI buttons, controls
-      if (
-        target.closest &&
-        (target.closest('button') ||
-          target.closest('.amap-controls') ||
-          target.closest('.amap-ui-control'))
-      ) {
+      if (pathElements.some((element) =>
+        element.matches('button, .amap-controls, .amap-ui-control') ||
+        Boolean(element.closest('button, .amap-controls, .amap-ui-control'))
+      )) {
         return;
       }
 
       // Ignore layer overlay elements (markers, vector shapes, text/image nodes, handles, etc.)
-      const tagName = target.tagName ? target.tagName.toLowerCase() : '';
-      const isVectorGraphic =
-        tagName === 'path' ||
-        tagName === 'polygon' ||
-        tagName === 'polyline' ||
-        tagName === 'rect' ||
-        tagName === 'circle' ||
-        tagName === 'ellipse' ||
-        tagName === 'g' ||
-        tagName === 'svg';
+      const isVectorGraphic = pathElements.some((element) =>
+        ['path', 'polygon', 'polyline', 'rect', 'circle', 'ellipse', 'g', 'svg'].includes(
+          element.tagName.toLowerCase()
+        )
+      );
 
-      const isOverlayDOM =
-        target.closest &&
-        (target.closest('.amap-overlay-container') !== null ||
-          target.closest('.amap-marker') !== null ||
-          target.closest('.amap-markers') !== null ||
-          target.closest('.amap-editor') !== null ||
-          target.closest('.amap-icon') !== null ||
-          target.closest('[data-layer-id]') !== null);
+      const isOverlayDOM = pathElements.some((element) =>
+        Boolean(
+          element.closest(
+            '.amap-overlay-container, .amap-marker, .amap-markers, .amap-editor, .amap-icon, [data-layer-id]'
+          )
+        )
+      );
 
       if (isVectorGraphic || isOverlayDOM) {
         return;
@@ -260,6 +283,10 @@ export const MapCanvas: React.FC = () => {
         const maxY = Math.max(startY, endY);
 
         selectLayersInBox(minX, maxX, minY, maxY, e.shiftKey);
+      } else if (!e.shiftKey) {
+        // A click that started on empty map space clears the current selection.
+        setFocusedLayerId(null);
+        setMultiSelectedLayerIds(new Set());
       }
 
       marqueeStartRef.current = null;
@@ -282,6 +309,8 @@ export const MapCanvas: React.FC = () => {
     currentActiveTool,
     isBoxSelectingNodes,
     selectLayersInBox,
+    setFocusedLayerId,
+    setMultiSelectedLayerIds,
   ]);
 
   return (
@@ -292,31 +321,28 @@ export const MapCanvas: React.FC = () => {
       {/* Selection Overlay Canvas */}
       <canvas
         ref={selectionCanvasRef}
-        className={`absolute top-0 left-0 w-full h-full z-10 ${
-          isBoxSelectingNodes ? 'pointer-events-auto cursor-crosshair' : 'pointer-events-none'
-        }`}
+        className={`absolute top-0 left-0 w-full h-full z-10 ${isBoxSelectingNodes ? 'pointer-events-auto cursor-crosshair' : 'pointer-events-none'
+          }`}
       />
 
       {/* Floating Map Corner Buttons */}
       {!isPureMap && (
         <>
           <button
-            className={`absolute top-4 left-4 z-15 h-9 px-3.5 rounded-xl backdrop-blur-xl border cursor-pointer text-xs font-semibold flex items-center gap-1.5 transition-all hover:-translate-y-0.5 ${
-              isLayerPanelOpen
-                ? 'bg-[#007AFF] text-white border-[#007AFF] shadow-lg shadow-[#007AFF]/25'
-                : 'bg-white/90 text-[#1c1c1e] border-white/80 shadow-lg hover:bg-white hover:text-[#007AFF]'
-            }`}
+            className={`absolute top-4 left-4 z-15 h-9 px-3.5 rounded-xl backdrop-blur-xl border cursor-pointer text-xs font-semibold flex items-center gap-1.5 transition-all hover:-translate-y-0.5 ${isLayerPanelOpen
+              ? 'bg-[#007AFF] text-white border-[#007AFF] shadow-lg shadow-[#007AFF]/25'
+              : 'bg-white/90 text-[#1c1c1e] border-white/80 shadow-lg hover:bg-white hover:text-[#007AFF]'
+              }`}
             onClick={() => setIsLayerPanelOpen(!isLayerPanelOpen)}
           >
             <Layers className="w-4 h-4" /> 图层
           </button>
 
           <button
-            className={`absolute top-4 right-4 z-15 h-9 px-3.5 rounded-xl backdrop-blur-xl border cursor-pointer text-xs font-semibold flex items-center gap-1.5 transition-all hover:-translate-y-0.5 ${
-              isInspectorPanelOpen
-                ? 'bg-[#007AFF] text-white border-[#007AFF] shadow-lg shadow-[#007AFF]/25'
-                : 'bg-white/90 text-[#1c1c1e] border-white/80 shadow-lg hover:bg-white hover:text-[#007AFF]'
-            }`}
+            className={`absolute top-4 right-4 z-15 h-9 px-3.5 rounded-xl backdrop-blur-xl border cursor-pointer text-xs font-semibold flex items-center gap-1.5 transition-all hover:-translate-y-0.5 ${isInspectorPanelOpen
+              ? 'bg-[#007AFF] text-white border-[#007AFF] shadow-lg shadow-[#007AFF]/25'
+              : 'bg-white/90 text-[#1c1c1e] border-white/80 shadow-lg hover:bg-white hover:text-[#007AFF]'
+              }`}
             onClick={() => setIsInspectorPanelOpen(!isInspectorPanelOpen)}
           >
             <Info className="w-4 h-4" /> 检查器
@@ -345,9 +371,8 @@ export const MapCanvas: React.FC = () => {
             {(['replace', 'add', 'subtract'] as const).map((mode) => (
               <button
                 key={mode}
-                className={`px-2 py-0.5 text-[11px] rounded-md transition-all cursor-pointer ${
-                  nodeSelectMode === mode ? 'bg-[#007AFF] text-white font-semibold' : 'text-[#333]'
-                }`}
+                className={`px-2 py-0.5 text-[11px] rounded-md transition-all cursor-pointer ${nodeSelectMode === mode ? 'bg-[#007AFF] text-white font-semibold' : 'text-[#333]'
+                  }`}
                 onClick={() => setNodeSelectMode(mode)}
               >
                 {mode === 'replace' ? '替换' : mode === 'add' ? '增加' : '减去'}
