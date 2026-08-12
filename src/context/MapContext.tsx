@@ -27,6 +27,7 @@ import {
 } from '../services/mapPresets';
 import { getStoredFonts, saveFontToDB, deleteFontFromDB, registerFontFace } from '../services/indexedDB';
 import { buildStationIconSvg, createCustomIcon, getAnchorByOffsetDir } from '../utils/svgHelpers';
+import { useDialog } from './DialogContext';
 
 interface MapContextType {
   mapInstance: any;
@@ -87,14 +88,16 @@ interface MapContextType {
   setIsCityPanelOpen: (open: boolean) => void;
   isSearchPanelOpen: boolean;
   setIsSearchPanelOpen: (open: boolean) => void;
-  isLayerPanelOpen: boolean;
-  setIsLayerPanelOpen: (open: boolean) => void;
   isInspectorPanelOpen: boolean;
   setIsInspectorPanelOpen: (open: boolean) => void;
   isStylePanelOpen: boolean;
   setIsStylePanelOpen: (open: boolean) => void;
   isExportModalOpen: boolean;
   setIsExportModalOpen: (open: boolean) => void;
+
+  // Panel Switches
+  openedLeftPanel: 'file' | 'asset' | 'setting' | null;
+  setOpenedLeftPanel: (panel: 'file' | 'asset' | 'setting' | null) => void;
 
   // Context Menu
   contextMenuPos: { x: number; y: number } | null;
@@ -186,6 +189,8 @@ export function useMap() {
 const MAX_HISTORY_SIZE = 30;
 
 export const MapProvider: React.FC<{ children: ReactNode }> = ({ children }: { children: ReactNode }) => {
+  const { showAlert, showConfirm, showPrompt } = useDialog();
+
   const [mapInstance, setMapInstance] = useState<any>(null);
   const [mouseTool, setMouseTool] = useState<any>(null);
 
@@ -347,7 +352,7 @@ export const MapProvider: React.FC<{ children: ReactNode }> = ({ children }: { c
   // Panels visibility
   const [isCityPanelOpen, setIsCityPanelOpen] = useState(false);
   const [isSearchPanelOpen, setIsSearchPanelOpen] = useState(false);
-  const [isLayerPanelOpen, setIsLayerPanelOpen] = useState(true);
+  const [openedLeftPanel, setOpenedLeftPanel] = useState<'file' | 'asset' | 'setting' | null>('file');
   const [isInspectorPanelOpen, setIsInspectorPanelOpen] = useState(false);
   const [isStylePanelOpen, setIsStylePanelOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
@@ -1102,10 +1107,11 @@ export const MapProvider: React.FC<{ children: ReactNode }> = ({ children }: { c
     textDiv.ondblclick = (e) => {
       e.stopPropagation();
       if (layer.locked) return;
-      const promptVal = prompt('请输入新的标注文本：', layer.data.name || '标注文本');
-      if (promptVal !== null && promptVal.trim() !== '') {
-        editTextContent(id, promptVal.trim());
-      }
+      showPrompt('请输入新的标注文本：', layer.data.name || '标注文本', (newText) => {
+        if (newText !== undefined && newText !== null && newText.trim() !== '') {
+          editTextContent(id, newText.trim());
+        }
+      });
     };
 
     if (layer.overlay.setContent) {
@@ -1677,7 +1683,7 @@ export const MapProvider: React.FC<{ children: ReactNode }> = ({ children }: { c
     const layer = layerMapRef.current.get(id);
     if (layer) {
       if (layer.locked) {
-        alert('该图层已被锁定，无法移除！');
+        showAlert('该图层已被锁定，无法移除！');
         return;
       }
       if (layer.isEditing) {
@@ -1874,7 +1880,7 @@ export const MapProvider: React.FC<{ children: ReactNode }> = ({ children }: { c
     const layer = layerMapRef.current.get(id);
     if (!layer) return;
     if (layer.locked) {
-      alert('图层已锁定，不可调整状态');
+      showAlert('图层已锁定，不可调整状态');
       return;
     }
 
@@ -2051,7 +2057,7 @@ export const MapProvider: React.FC<{ children: ReactNode }> = ({ children }: { c
     const layer = layerMapRef.current.get(id);
     if (!layer) return;
     if (layer.locked) {
-      alert('图层已锁定，无法编辑');
+      showAlert('图层已锁定，无法编辑');
       return;
     }
 
@@ -2173,7 +2179,7 @@ export const MapProvider: React.FC<{ children: ReactNode }> = ({ children }: { c
     if (!targetLayer) return;
 
     if (targetLayer.locked) {
-      alert('当前图层已锁定，无法修改样式');
+      showAlert('当前图层已锁定，无法修改样式');
       return;
     }
 
@@ -2245,29 +2251,31 @@ export const MapProvider: React.FC<{ children: ReactNode }> = ({ children }: { c
 
   // Folder Operations
   const createNewFolder = (parentFolderId: string | null = null) => {
-    const folderName = prompt('请输入新文件夹名称：', '未命名文件夹');
-    if (!folderName || !folderName.trim()) return;
+    showPrompt('请输入新文件夹名称：', '未命名文件夹', (input) => {
+      if (!input || !input.trim()) return;
+      const folderName = input.trim();
+      if (!folderName || !folderName.trim()) return;
+      const folderId = 'folder_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+      const folderObj: FolderObject = {
+        id: folderId,
+        name: folderName.trim(),
+        isFolder: true,
+        collapsed: false,
+        children: [],
+        visible: true,
+      };
 
-    const folderId = 'folder_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
-    const folderObj: FolderObject = {
-      id: folderId,
-      name: folderName.trim(),
-      isFolder: true,
-      collapsed: false,
-      children: [],
-      visible: true,
-    };
+      folderMapRef.current.set(folderId, folderObj);
 
-    folderMapRef.current.set(folderId, folderObj);
+      if (parentFolderId && folderMapRef.current.has(parentFolderId)) {
+        folderMapRef.current.get(parentFolderId)!.children.unshift(folderId);
+      } else {
+        setLayerTree((prev) => [folderId, ...prev]);
+      }
 
-    if (parentFolderId && folderMapRef.current.has(parentFolderId)) {
-      folderMapRef.current.get(parentFolderId)!.children.unshift(folderId);
-    } else {
-      setLayerTree((prev) => [folderId, ...prev]);
-    }
-
-    pushSnapshot();
-    forceUpdateLayers();
+      pushSnapshot();
+      forceUpdateLayers();
+    });
   };
 
   const toggleFolderCollapse = (folderId: string, event?: any) => {
@@ -2331,31 +2339,34 @@ export const MapProvider: React.FC<{ children: ReactNode }> = ({ children }: { c
 
   const groupSelectedLayers = () => {
     if (multiSelectedLayerIds.size < 2) return;
-    const folderName = prompt('请输入新建组合文件夹的名称：', '分组图层');
-    if (!folderName || !folderName.trim()) return;
+    showPrompt('请输入新建组合文件夹的名称：', '分组图层', (input) => {
+      if (!input || !input.trim()) return;
+      const folderName = input.trim();
+      if (!folderName || !folderName.trim()) return;
 
-    const folderId = 'folder_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
-    const folderObj: FolderObject = {
-      id: folderId,
-      name: folderName.trim(),
-      isFolder: true,
-      collapsed: false,
-      children: Array.from(multiSelectedLayerIds),
-      visible: true,
-    };
+      const folderId = 'folder_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+      const folderObj: FolderObject = {
+        id: folderId,
+        name: folderName.trim(),
+        isFolder: true,
+        collapsed: false,
+        children: Array.from(multiSelectedLayerIds),
+        visible: true,
+      };
 
-    folderMapRef.current.set(folderId, folderObj);
+      folderMapRef.current.set(folderId, folderObj);
 
-    multiSelectedLayerIds.forEach((id) => {
-      removeItemFromTree(id);
+      multiSelectedLayerIds.forEach((id) => {
+        removeItemFromTree(id);
+      });
+
+      setLayerTree((prev) => [folderId, ...prev]);
+      setMultiSelectedLayerIds(new Set());
+      setFocusedLayerId(null);
+
+      pushSnapshot();
+      forceUpdateLayers();
     });
-
-    setLayerTree((prev) => [folderId, ...prev]);
-    setMultiSelectedLayerIds(new Set());
-    setFocusedLayerId(null);
-
-    pushSnapshot();
-    forceUpdateLayers();
   };
 
   const alignSelectedLayers = (alignment: 'left' | 'right' | 'top' | 'bottom' | 'centerX' | 'centerY') => {
@@ -2371,7 +2382,7 @@ export const MapProvider: React.FC<{ children: ReactNode }> = ({ children }: { c
     });
 
     if (points.length < 2) {
-      alert('选中的图层中包含非点位类型，暂时仅支持点位/标记类型的对齐！');
+      showAlert('选中的图层中包含非点位类型，暂时仅支持点位/标记类型的对齐！');
       return;
     }
 
@@ -2405,7 +2416,7 @@ export const MapProvider: React.FC<{ children: ReactNode }> = ({ children }: { c
     if (!focusedLayerId) return;
     const layer = layerMapRef.current.get(focusedLayerId);
     if (!layer || (layer.data.type !== 'line' && layer.data.type !== 'pen')) {
-      alert('请先选择并开启线路或钢笔图层的地图编辑！');
+      showAlert('请先选择并开启线路或钢笔图层的地图编辑！');
       return;
     }
 
@@ -2482,7 +2493,7 @@ export const MapProvider: React.FC<{ children: ReactNode }> = ({ children }: { c
 
   const deleteSelectedNodes = () => {
     if (!focusedLayerId || selectedNodeIndicesSetRef.current.size === 0) {
-      alert('未选中任何节点');
+      showAlert('未选中任何节点');
       return;
     }
 
@@ -2496,7 +2507,7 @@ export const MapProvider: React.FC<{ children: ReactNode }> = ({ children }: { c
     });
 
     if (path.length < 2) {
-      alert('线路节点数量过少（少于2个），无法构成路线！');
+      showAlert('线路节点数量过少（少于2个），无法构成路线！');
       return;
     }
 
@@ -2514,7 +2525,7 @@ export const MapProvider: React.FC<{ children: ReactNode }> = ({ children }: { c
 
   const copySelectedNodesToNewLayer = () => {
     if (!focusedLayerId || selectedNodeIndicesSetRef.current.size < 2) {
-      alert('框选选中的节点数不足2个，无法创建新钢笔图层！');
+      showAlert('框选选中的节点数不足2个，无法创建新钢笔图层！');
       return;
     }
 
@@ -2757,8 +2768,8 @@ export const MapProvider: React.FC<{ children: ReactNode }> = ({ children }: { c
         setIsCityPanelOpen,
         isSearchPanelOpen,
         setIsSearchPanelOpen,
-        isLayerPanelOpen,
-        setIsLayerPanelOpen,
+        openedLeftPanel,
+        setOpenedLeftPanel,
         isInspectorPanelOpen,
         setIsInspectorPanelOpen,
         isStylePanelOpen,

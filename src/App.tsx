@@ -1,19 +1,25 @@
 import React, { useEffect } from 'react';
 import { MapProvider, useMap } from './context/MapContext';
+import { DialogProvider } from './context/DialogContext';
 import { Header } from './components/Header';
 import { MapCanvas } from './components/MapCanvas';
 import { CityPanel } from './components/CityPanel';
 import { SearchPanel } from './components/SearchPanel';
-import { LayerPanel } from './components/LayerPanel';
+import { FilePanel } from './components/FilePanel';
 import { InspectorPanel } from './components/InspectorPanel';
-import { StylePanel } from './components/StylePanel';
+import { SettingPanel } from './components/SettingPanel';
 import { ExportModal } from './components/ExportModal';
 import { ContextMenu } from './components/ContextMenu';
 import { ColorPickerModal } from './components/ColorPickerModal';
+import { AssetPanel } from './components/AssetPanel';
 
 const MapAppContent: React.FC = () => {
   const {
     setIsCityPanelOpen,
+    openedLeftPanel,
+    setOpenedLeftPanel,
+    isInspectorPanelOpen,
+    setIsInspectorPanelOpen,
     isSearchPanelOpen,
     setIsSearchPanelOpen,
     setIsExportModalOpen,
@@ -66,6 +72,30 @@ const MapAppContent: React.FC = () => {
         if (isPureMap) togglePureMapMode();
       }
 
+      // Switch left panels with option and keys (1, 2, Comma)
+      if (e.altKey) {
+        e.preventDefault();
+        switch (e.code) {
+          case 'Digit1':
+            setOpenedLeftPanel(openedLeftPanel === 'file' ? null : 'file');
+            break;
+          case 'Digit2':
+            setOpenedLeftPanel(openedLeftPanel === 'asset' ? null : 'asset');
+            break;
+          case 'Comma':
+            setOpenedLeftPanel(openedLeftPanel === 'setting' ? null : 'setting');
+            break;
+          case 'KeyI':
+            setIsInspectorPanelOpen(!isInspectorPanelOpen);
+            break;
+          case 'KeyF':
+            togglePureMapMode();
+            break;
+          default:
+            break;
+        }
+      }
+
       // Delete / Backspace key to remove selected layers
       if (
         (e.key === 'Backspace' || e.key === 'Delete') &&
@@ -108,6 +138,7 @@ const MapAppContent: React.FC = () => {
     setFocusedLayerId,
     setMultiSelectedLayerIds,
     layerMap,
+    setOpenedLeftPanel,
   ]);
 
   return (
@@ -118,9 +149,10 @@ const MapAppContent: React.FC = () => {
         <MapCanvas />
         <CityPanel />
         <SearchPanel />
-        <LayerPanel />
+        <FilePanel />
+        <AssetPanel />
         <InspectorPanel />
-        <StylePanel />
+        <SettingPanel />
       </main>
 
       <ExportModal />
@@ -132,8 +164,10 @@ const MapAppContent: React.FC = () => {
 
 export default function App() {
   return (
-    <MapProvider>
-      <MapAppContent />
-    </MapProvider>
+    <DialogProvider>
+      <MapProvider>
+        <MapAppContent />
+      </MapProvider>
+    </DialogProvider>
   );
 }

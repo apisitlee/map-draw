@@ -14,6 +14,7 @@ import {
   Route,
   MapPin,
   Building,
+  Bolt,
 } from 'lucide-react';
 
 const MAP_THEMES = [
@@ -29,10 +30,12 @@ const MAP_THEMES = [
   { key: 'amap://styles/grey', title: '雅士灰(grey)', class: 'tp-img-grey' },
 ];
 
-export const StylePanel: React.FC = () => {
+export const SettingPanel: React.FC = () => {
   const {
     isStylePanelOpen,
     setIsStylePanelOpen,
+    openedLeftPanel,
+    setOpenedLeftPanel,
     globalTextConfig,
     updateGlobalTextConfig,
     customFonts,
@@ -52,7 +55,7 @@ export const StylePanel: React.FC = () => {
 
   const fontFileInputRef = useRef<HTMLInputElement>(null);
 
-  if (!isStylePanelOpen || isPureMap) return null;
+  if (openedLeftPanel !== 'setting' || isPureMap) return null;
 
   const currentRotation = mapInstance ? mapInstance.getRotation() || 0 : 0;
 
@@ -89,15 +92,14 @@ export const StylePanel: React.FC = () => {
   };
 
   return (
-    <div className="absolute top-[60px] right-4 w-[340px] max-h-[calc(100vh-120px)] bg-white/88 backdrop-blur-xl rounded-2xl shadow-xl border border-white/70 z-20 flex flex-col transition-all">
+    <div className="absolute top-0 left-[55px] w-[340px] h-full bg-white border-r border-black/30 z-20 flex flex-col transition-all">
       <div className="p-3.5 flex items-center justify-between border-b border-black/5">
-        <span className="text-xs font-semibold text-[#1c1c1e] flex items-center gap-1.5">
-          <Sliders className="w-4 h-4 text-[#007AFF]" />
+        <span className="text-sm font-semibold text-[#1c1c1e] flex items-center gap-1.5">
           设置
         </span>
         <button
           className="w-6.5 h-6.5 rounded-full text-[#8e8e93] hover:bg-black/5 hover:text-[#1c1c1e] flex items-center justify-center text-xs cursor-pointer transition-all"
-          onClick={() => setIsStylePanelOpen(false)}
+          onClick={() => setOpenedLeftPanel(null)}
         >
           <X className="w-4 h-4" />
         </button>
@@ -235,9 +237,8 @@ export const StylePanel: React.FC = () => {
             {MAP_THEMES.map((theme) => (
               <div
                 key={theme.key}
-                className={`border-2 rounded-xl overflow-hidden cursor-pointer bg-white transition-all shadow-xs hover:-translate-y-0.5 hover:shadow-md ${
-                  currentMapStyle === theme.key ? 'border-[#007AFF]' : 'border-transparent'
-                }`}
+                className={`border-2 rounded-xl overflow-hidden cursor-pointer bg-white transition-all shadow-xs hover:-translate-y-0.5 hover:shadow-md ${currentMapStyle === theme.key ? 'border-[#007AFF]' : 'border-transparent'
+                  }`}
                 onClick={() => applyMapTheme(theme.key)}
               >
                 <div className={`h-[65px] bg-cover bg-center relative ${theme.class}`}>

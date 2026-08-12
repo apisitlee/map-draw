@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import { useMap } from '../context/MapContext';
 import {
-  Layers,
-  X,
   FolderPlus,
   Folder,
   FolderOpen,
@@ -18,15 +16,17 @@ import {
   Circle,
   Shapes,
   Image as ImageIcon,
-  PenTool,
   Type,
+  ChevronRight,
+  ChevronDown,
+  SquareDashed,
+  RectangleHorizontal,
 } from 'lucide-react';
 import { LayerType } from '../types';
 
-export const LayerPanel: React.FC = () => {
+export const FilePanel: React.FC = () => {
   const {
-    isLayerPanelOpen,
-    setIsLayerPanelOpen,
+    openedLeftPanel,
     layerTree,
     folderMap,
     layerMap,
@@ -47,7 +47,7 @@ export const LayerPanel: React.FC = () => {
 
   const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
 
-  if (!isLayerPanelOpen || isPureMap) return null;
+  if (openedLeftPanel !== 'file' || isPureMap) return null;
 
   const getLayerIcon = (type: LayerType) => {
     switch (type) {
@@ -57,7 +57,7 @@ export const LayerPanel: React.FC = () => {
       case 'station':
         return <Bus className="w-3.5 h-3.5" />;
       case 'rectangle':
-        return <Square className="w-3.5 h-3.5" />;
+        return <RectangleHorizontal className="w-3.5 h-3.5" />;
       case 'circle':
         return <Circle className="w-3.5 h-3.5" />;
       case 'polygon':
@@ -108,20 +108,22 @@ export const LayerPanel: React.FC = () => {
     }
   };
 
-  const renderTreeNodes = (nodes: string[]) => {
+  const renderTreeNodes = (nodes: string[], indent: number = 0) => {
+    const plCalc = `${16 + 16 * indent}px`;
+    const plItemCalc = `${16 + 16 * indent}px`;
     return nodes.map((id) => {
       if (folderMap.has(id)) {
         const folder = folderMap.get(id)!;
         const isDragOver = dragOverFolderId === folder.id;
 
         return (
-          <div key={folder.id} className="mb-1">
+          <div key={folder.id} className="jio">
             <div
-              className={`flex items-center justify-between p-1.5 rounded-lg border transition-all cursor-pointer ${isDragOver
-                ? 'bg-[#007AFF]/15 border-dashed border-[#007AFF]'
-                : 'bg-black/5 hover:bg-black/10 border-black/5'
+              className={`group/folder flex items-center justify-between pr-1.5 py-0.5 transition-all cursor-pointer ${isDragOver
+                ? 'bg-[#007AFF]/15'
+                : 'hover:bg-black/10'
                 }`}
-              onClick={(e) => toggleFolderCollapse(folder.id, e)}
+              style={{ 'paddingLeft': plCalc }}
               onContextMenu={(e) => handleContextMenu(e, folder.id)}
               onDragOver={(e) => {
                 e.preventDefault();
@@ -131,17 +133,16 @@ export const LayerPanel: React.FC = () => {
               onDragLeave={() => setDragOverFolderId(null)}
               onDrop={(e) => handleDropOnFolder(e, folder.id)}
             >
-              <div className="flex items-center gap-1.5 flex-1 overflow-hidden">
-                <GripVertical className="w-3 h-3 text-[#c7c7cc] shrink-0" />
-                {folder.collapsed ? (
-                  <Folder className="w-4 h-4 text-amber-500 shrink-0" />
-                ) : (
-                  <FolderOpen className="w-4 h-4 text-amber-500 shrink-0" />
-                )}
-                <span className="text-xs font-semibold text-[#1c1c1e] truncate">{folder.name}</span>
+              <button className="w-4 h-4 flex items-center justify-center shrink-0 text-xs -ml-[16px]" onClick={(e) => toggleFolderCollapse(folder.id, e)}>
+                <ChevronDown className={`w-[8px] h-[8px] opacity-60 text-xs ${folder.collapsed ? '-rotate-90' : ''}`} />
+              </button>
+              <div className="flex items-center gap-1.5 flex-1">
+                {/* <GripVertical className="w-3 h-3 text-[#c7c7cc] shrink-0" /> */}
+                <SquareDashed className="w-4 h-4 shrink-0 text-[#999]" />
+                <span className="text-xs text-[#1c1c1e] truncate">{folder.name}</span>
               </div>
 
-              <div className="flex items-center gap-0.5 opacity-80 hover:opacity-100" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center gap-0.5 opacity-80 hover:opacity-100 invisible group-hover/folder:visible" onClick={(e) => e.stopPropagation()}>
                 <button
                   className="w-6 h-6 rounded-md hover:bg-black/10 text-[#8e8e93] hover:text-[#1c1c1e] flex items-center justify-center text-xs cursor-pointer"
                   onClick={() => createNewFolder(folder.id)}
@@ -161,9 +162,9 @@ export const LayerPanel: React.FC = () => {
 
             {/* Folder Children */}
             {!folder.collapsed && (
-              <div className="pl-3.5 border-l-2 border-dashed border-black/10 ml-2.5 mt-1">
-                {renderTreeNodes(folder.children)}
-              </div>
+              <>
+                {renderTreeNodes(folder.children, indent + 1)}
+              </>
             )}
           </div>
         );
@@ -178,28 +179,27 @@ export const LayerPanel: React.FC = () => {
             key={id}
             draggable={!locked}
             onDragStart={(e) => e.dataTransfer.setData('text/plain', id)}
-            className={`flex items-center justify-between p-1.5 mb-1 rounded-lg border transition-all cursor-pointer select-none ${!visible ? 'opacity-50 bg-black/5' : ''
-              } ${locked ? 'bg-black/10 cursor-not-allowed' : 'hover:bg-black/10'} ${isFocused ? 'bg-[#007AFF] border-[#007AFF] text-white' : 'text-[#1c1c1e] border-transparent'
-              } ${isMulti ? 'bg-emerald-500/20 border-dashed border-emerald-500' : ''}`}
+            className={`group/item flex items-center justify-between px-1.5 py-0.5 transition-all cursor-pointer select-none ${!visible ? 'opacity-50 bg-black/5' : ''
+              } ${locked ? 'bg-black/10 cursor-not-allowed' : 'hover:bg-black/10'} ${isMulti || isFocused ? 'bg-[#007AFF]/10 text-black' : 'text-[#1c1c1e]'
+              }`}
+            style={{ 'paddingLeft': plItemCalc }}
             onClick={(e) => selectLayer(id, e)}
             onContextMenu={(e) => handleContextMenu(e, id)}
           >
-            <div className="flex items-center gap-1.5 flex-1 overflow-hidden">
-              <GripVertical className="w-3 h-3 text-[#c7c7cc] shrink-0" />
+            <button className="w-4 h-4 bg-[orange] flex items-center justify-center shrink-0 text-xs -ml-[14px] invisible">
+              <ChevronDown className={`w-[8px] h-[8px] bg-[red] opacity-60 text-xs`} />
+            </button>
+            <div className={`flex items-center gap-1.5 flex-1 overflow-hidden`}>
+              {/* <GripVertical className="w-3 h-3 text-[#c7c7cc] shrink-0" /> */}
               <div
-                className={`w-5 h-5 rounded flex items-center justify-center text-[10px] shrink-0 ${data.type === 'line' || data.type === 'pen'
-                  ? 'bg-emerald-100 text-emerald-600'
-                  : data.type === 'station'
-                    ? 'bg-amber-100 text-amber-600'
-                    : 'bg-blue-100 text-[#007AFF]'
-                  }`}
+                className={`w-4 h-4 flex items-center justify-center text-xs shrink-0 ${isFocused ? 'text-[#1c1c1e]' : 'text-[#999]'}`}
               >
                 {getLayerIcon(data.type)}
               </div>
               <span className="text-xs truncate max-w-[120px]">{data.name}</span>
             </div>
 
-            <div className="flex items-center gap-0.5 opacity-80 hover:opacity-100" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-0.5 opacity-80 hover:opacity-100 invisible group-hover/item:visible" onClick={(e) => e.stopPropagation()}>
               <button
                 className={`w-6 h-6 rounded-md hover:bg-black/10 flex items-center justify-center text-xs cursor-pointer ${locked ? 'text-[#ff3b30]' : ''
                   }`}
@@ -224,36 +224,28 @@ export const LayerPanel: React.FC = () => {
   };
 
   return (
-    <div className="absolute top-[60px] left-4 w-[290px] max-h-[calc(100vh-120px)] bg-white/88 backdrop-blur-xl rounded-2xl shadow-xl border border-white/70 z-20 flex flex-col transition-all">
-      <div className="p-3.5 flex items-center justify-between border-b border-black/5">
-        <span className="text-xs font-semibold text-[#1c1c1e] flex items-center gap-1.5">
-          <Layers className="w-4 h-4 text-[#007AFF]" />
-          图层列表
-        </span>
-        <div className="flex items-center gap-1.5">
-          <button
-            className="px-2 py-1 text-[11px] rounded-md bg-[#007AFF] text-white hover:bg-[#0056b3] transition-colors flex items-center gap-1 cursor-pointer"
-            onClick={() => createNewFolder()}
-            title="新建文件夹组"
-          >
-            <FolderPlus className="w-3 h-3" /> 新建文件夹
-          </button>
-          <button
-            className="w-6.5 h-6.5 rounded-full text-[#8e8e93] hover:bg-black/5 hover:text-[#1c1c1e] flex items-center justify-center text-xs cursor-pointer transition-all"
-            onClick={() => setIsLayerPanelOpen(false)}
-          >
-            <X className="w-4 h-4" />
+    openedLeftPanel === 'file' && (<div className="absolute top-0 left-[55px] w-[290px] h-[100vh] bg-white border-r border-black/20 z-20 flex flex-col transition-all">
+      <header className="w-full py-3 px-3 border-b border-black/5 rounded-md">
+        <div className="group flex items-stretch justify-between transition-all rounded-md">
+          <span className="h-6 flex-1 w-full bg-transparent border border-transparent focus:outline-none group-hover:bg-black/5 hover:bg-black/10 rounded-l-md text-sm font-semibold px-2 whitespace-nowrap overflow-hidden text-ellipsis">新文件发生地方撒发生范德萨v饭打扫额外积分呢，吗，</span>
+          <input className="peer h-6 flex-1 bg-transparent border border-transparent focus:outline-none group-hover:bg-black/5 hover:bg-black/10 rounded-l-md text-sm font-semibold px-2 focus:border-[#007AFF] focus:rounded-md focus:bg-transparent hidden" />
+          <button className="shrink-0 group-hover:bg-black/5 hover:bg-black/10 rounded-r-md w-6 flex items-center justify-center peer-focus:hidden">
+            <ChevronDown className="w-3.5 h-3.5 text-[#8e8e93]" />
           </button>
         </div>
+      </header>
+
+      <div className="flex items-center justify-start text-xs py-1 px-2.5">
+        <ChevronRight className="w-3 h-3 text-[#8e8e93] mr-1" />
+        <ChevronDown className="w-3 h-3 text-[#8e8e93] mr-1" />
+        <span>图层</span>
       </div>
 
-      <div className="p-3 overflow-y-auto flex-1">
-        {layerTree.length === 0 ? (
-          <div className="text-[#8e8e93] text-center text-xs py-4">暂无图层</div>
-        ) : (
+      <div className="py-3 pl-4 pr-3 overflow-y-auto flex-1">
+        {layerTree.length > 0 && (
           renderTreeNodes(layerTree)
         )}
       </div>
-    </div>
+    </div>)
   );
 };

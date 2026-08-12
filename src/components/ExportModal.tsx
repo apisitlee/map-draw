@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { useMap } from '../context/MapContext';
+import { useDialog } from '../context/DialogContext';
 import { Share, X, Code2, Camera } from 'lucide-react';
 import html2canvas from 'html2canvas';
 
 export const ExportModal: React.FC = () => {
   const { isExportModalOpen, setIsExportModalOpen, exportJSONData } = useMap();
+  const { showAlert } = useDialog();
   const [filename, setFilename] = useState(`map_draw_export_${Date.now()}`);
 
   if (!isExportModalOpen) return null;
@@ -32,7 +34,7 @@ export const ExportModal: React.FC = () => {
       link.click();
     } catch (err) {
       console.error('Screenshot error:', err);
-      alert('导出截图时遇到问题，部分瓦片跨域未响应。');
+      showAlert('导出截图时遇到问题，部分瓦片跨域未响应。');
     }
   };
 

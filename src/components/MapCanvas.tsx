@@ -1,7 +1,8 @@
 import React, { useEffect, useRef } from 'react';
 import { useMap } from '../context/MapContext';
-import { Layers, Info, Sparkles, BoxSelect, Copy, Trash2, X } from 'lucide-react';
+import { Info, Sparkles, BoxSelect, Copy, Trash2, X, Menu, File, CirclePlus, Bolt, Fullscreen, Maximize } from 'lucide-react';
 import { getSavedMapState } from '../services/mapPresets';
+import { Tooltip } from './Tooltip';
 
 export const MapCanvas: React.FC = () => {
   const {
@@ -9,9 +10,8 @@ export const MapCanvas: React.FC = () => {
     setMouseTool,
     currentMapStyle,
     activeCoreFeatures,
-    globalTextConfig,
-    isLayerPanelOpen,
-    setIsLayerPanelOpen,
+    openedLeftPanel,
+    setOpenedLeftPanel,
     isInspectorPanelOpen,
     setIsInspectorPanelOpen,
     isPureMap,
@@ -333,15 +333,69 @@ export const MapCanvas: React.FC = () => {
       {/* Floating Map Corner Buttons */}
       {!isPureMap && (
         <>
-          <button
-            className={`absolute top-4 left-4 z-15 h-9 px-3.5 rounded-xl backdrop-blur-xl border cursor-pointer text-xs font-semibold flex items-center gap-1.5 transition-all hover:-translate-y-0.5 ${isLayerPanelOpen
-              ? 'bg-[#007AFF] text-white border-[#007AFF] shadow-lg shadow-[#007AFF]/25'
-              : 'bg-white/90 text-[#1c1c1e] border-white/80 shadow-lg hover:bg-white hover:text-[#007AFF]'
-              }`}
-            onClick={() => setIsLayerPanelOpen(!isLayerPanelOpen)}
-          >
-            <Layers className="w-4 h-4" /> 图层
-          </button>
+          {/* 左边栏   */}
+          <aside className="w-[55px] absolute top-0 left-0 z-35 bg-white h-full flex flex-col justify-start items-center gap-y-2 py-2.5 border-r border-r-[#ddd]">
+
+            <Tooltip content="主菜单" placement="right">
+              <button className="w-10 h-10 rounded-lg hover:bg-black/5 text-[#8e8e93] flex items-center justify-center text-xs cursor-pointer">
+                <Menu className="w-4 h-4" />
+              </button>
+            </Tooltip>
+
+            <div className="w-8 h-[1px] bg-black/10"></div>
+
+            <div className="flex-1 flex flex-col gap-2">
+              <Tooltip content="文件 ⌥ 1" placement="right">
+                <button
+                  className={`group w-10 cursor-pointer flex flex-col items-center justify-center ${openedLeftPanel === 'file' ? 'text-[#007AFF]' : 'text-black/80'}`}
+                  onClick={() => setOpenedLeftPanel(openedLeftPanel === 'file' ? null : 'file')}
+                >
+                  <div className={`w-8 h-8 flex items-center justify-center ${openedLeftPanel === 'file' ? 'bg-[#007AFF]/10' : 'group-hover:bg-black/5'} rounded-lg`}>
+                    <File className="w-4 h-4" />
+                  </div>
+                  <span className="text-xs">文件</span>
+                </button>
+              </Tooltip>
+
+              <Tooltip content="资源 ⌥ 2" placement="right">
+                <button
+                  className={`group w-10 cursor-pointer flex flex-col items-center justify-center ${openedLeftPanel === 'asset' ? 'text-[#007AFF]' : 'text-black/80'}`}
+                  onClick={() => setOpenedLeftPanel(openedLeftPanel === 'asset' ? null : 'asset')}
+                >
+                  <div className={`w-8 h-8 flex items-center justify-center ${openedLeftPanel === 'asset' ? 'bg-[#007AFF]/10' : 'group-hover:bg-black/5'} rounded-lg`}>
+                    <CirclePlus className="w-4 h-4" />
+                  </div>
+                  <span className="text-xs">资源</span>
+                </button>
+              </Tooltip>
+            </div>
+
+            <div className="w-8 h-[1px] bg-black/10"></div>
+
+            <Tooltip content="全屏 ⌥ F" placement="right">
+              <button
+                className={`group w-10 cursor-pointer flex flex-col items-center justify-center text-black/80`}
+                onClick={() => togglePureMapMode()}
+              >
+                <div className={`w-8 h-8 flex items-center justify-center group-hover:bg-black/5 rounded-lg`}>
+                  <Maximize className="w-4 h-4" />
+                </div>
+              </button>
+            </Tooltip>
+
+            <Tooltip content="设置 ⌥ ," placement="right">
+              <button
+                className={`group w-10 cursor-pointer flex flex-col items-center justify-center ${openedLeftPanel === 'setting' ? 'text-[#007AFF]' : 'text-black/80'}`}
+                onClick={() => setOpenedLeftPanel(openedLeftPanel === 'setting' ? null : 'setting')}
+              >
+                <div className={`w-8 h-8 flex items-center justify-center ${openedLeftPanel === 'setting' ? 'bg-[#007AFF]/10' : 'group-hover:bg-black/5'} rounded-lg`}>
+                  <Bolt className="w-4 h-4" />
+                </div>
+              </button>
+            </Tooltip>
+
+            <div className="w-8 h-8 rounded-full bg-[#007AFF] text-white flex items-center justify-center text-sm font-bold">A</div>
+          </aside>
 
           <button
             className={`absolute top-4 right-4 z-15 h-9 px-3.5 rounded-xl backdrop-blur-xl border cursor-pointer text-xs font-semibold flex items-center gap-1.5 transition-all hover:-translate-y-0.5 ${isInspectorPanelOpen

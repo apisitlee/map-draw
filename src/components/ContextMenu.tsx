@@ -1,8 +1,10 @@
 import React, { useEffect } from 'react';
 import { useMap } from '../context/MapContext';
+import { useDialog } from '../context/DialogContext';
 import { Copy, Clipboard, Trash2 } from 'lucide-react';
 
 export const ContextMenu: React.FC = () => {
+  const { showAlert } = useDialog();
   const {
     contextMenuPos,
     setContextMenuPos,
@@ -34,7 +36,7 @@ export const ContextMenu: React.FC = () => {
       } else {
         const layer = layerMap.get(rightClickedLayerId);
         if (layer && layer.locked) {
-          alert('该图层已被锁定，不可删除！');
+          showAlert('该图层已被锁定，不可删除！');
           return;
         }
         removeLayerFromMap(rightClickedLayerId);
