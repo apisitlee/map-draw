@@ -1,6 +1,31 @@
 @import "tailwindcss";
 
+@layer base {
+  :root {
+    /* 默认主题色 */
+    --theme-primary: #00A7FF;
+    --theme-primary-hover: #008BE5;
+    --theme-primary-shadow: #00a6ff;
+
+    /* 背景 */
+    --bg-base: #f2f2f7;
+    /* 面板背景 */
+    --bg-panel: #ffffff;
+    /* 面板背景 */
+    --bg-panel-hover: #ffffff;
+    /* 面板悬浮背景 */
+
+    /* 文本与边框 */
+    --text-main: #121212;
+    --text-sub: #3c3c3c;
+    --text-info: #86898a;
+    /* 边框色 */
+    --border-line: rgba(133, 133, 133, 0.3);
+  }
+}
+
 @layer utilities {
+
   .amap-logo,
   .amap-copyright {
     opacity: 0 !important;
@@ -9,9 +34,17 @@
 }
 
 @keyframes mapPulse {
-  0% { opacity: 0.2; }
-  50% { opacity: 1; }
-  100% { opacity: 0.2; }
+  0% {
+    opacity: 0.2;
+  }
+
+  50% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0.2;
+  }
 }
 
 .amap-polyline-flashing {
@@ -34,6 +67,5 @@
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.25);
+  background: var(--theme-primary);
 }
-

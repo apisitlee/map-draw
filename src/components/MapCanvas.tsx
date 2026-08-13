@@ -3,6 +3,7 @@ import { useMap } from '../context/MapContext';
 import { Info, Sparkles, BoxSelect, Copy, Trash2, X, Menu, File, CirclePlus, Bolt, Fullscreen, Maximize } from 'lucide-react';
 import { getSavedMapState } from '../services/mapPresets';
 import { Tooltip } from './Tooltip';
+import { MainMenu } from './MainMenu';
 
 export const MapCanvas: React.FC = () => {
   const {
@@ -336,11 +337,7 @@ export const MapCanvas: React.FC = () => {
           {/* 左边栏   */}
           <aside className="w-[55px] absolute top-0 left-0 z-35 bg-white h-full flex flex-col justify-start items-center gap-y-2 py-2.5 border-r border-r-[#ddd]">
 
-            <Tooltip content="主菜单" placement="right">
-              <button className="w-10 h-10 rounded-lg hover:bg-black/5 text-[#8e8e93] flex items-center justify-center text-xs cursor-pointer">
-                <Menu className="w-4 h-4" />
-              </button>
-            </Tooltip>
+            <MainMenu />
 
             <div className="w-8 h-[1px] bg-black/10"></div>
 

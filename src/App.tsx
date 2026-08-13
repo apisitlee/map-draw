@@ -12,6 +12,26 @@ import { ExportModal } from './components/ExportModal';
 import { ContextMenu } from './components/ContextMenu';
 import { ColorPickerModal } from './components/ColorPickerModal';
 import { AssetPanel } from './components/AssetPanel';
+// 在 App.tsx 顶部添加路由所需的引入
+import { BrowserRouter as Router, Routes, Route, Navigate, useParams } from 'react-router-dom';
+// 引入新建的页面组件
+import { Home } from './pages/Home';
+import { ProjectDetails } from './pages/ProjectDetails';
+import { Landing } from './pages/Landing';
+import { Login } from './pages/Login';
+import { Trash } from './pages/Trash';
+import { Help } from './pages/Help';
+import { SidebarLayout } from './layouts/SidebarLayout';
+
+// 简易的路由守卫组件
+const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // 实际项目中请替换为你的真实鉴权逻辑 (如 Context, Redux, 或者真实的 Token 校验)
+  const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true';
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+  return <>{children}</>;
+};
 
 const MapAppContent: React.FC = () => {
   const {
@@ -162,12 +182,57 @@ const MapAppContent: React.FC = () => {
   );
 };
 
+// 创建一个专用的包装组件，用于给地图路由注入 MapProvider 并获取 URL 参数
+const MapEditorRoute: React.FC = () => {
+  const { fileId } = useParams<{ fileId: string }>();
+
+  // 你未来可以在这里通过 fileId 向后端请求地图数据
+  console.log("当前加载的地图 ID:", fileId);
+
+  return (
+    <MapProvider>
+      <MapAppContent />
+    </MapProvider>
+  );
+};
+
 export default function App() {
   return (
     <DialogProvider>
-      <MapProvider>
-        <MapAppContent />
-      </MapProvider>
+      <Router>
+        <Routes>
+          {/* 公共路由：无需登录 */}
+          <Route path="/" element={<Landing />} />
+          <Route path="/login" element={<Login />} />
+
+          {/* 受保护的仪表盘路由（主页、项目详情共享 SidebarLayout） */}
+          <Route
+            element={
+              <ProtectedRoute>
+                <SidebarLayout />
+              </ProtectedRoute>
+            }
+          >
+            <Route path="/files/home" element={<Home />} />
+            <Route path="/files/trash" element={<Trash />} />
+            <Route path="/project/:projectId" element={<ProjectDetails />} />
+            <Route path="/help" element={<Help />} />
+          </Route>
+
+          {/* 受保护的编辑器路由（独占全屏） */}
+          <Route
+            path="/file/:fileId"
+            element={
+              <ProtectedRoute>
+                <MapEditorRoute />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* 捕获所有未匹配的路由 */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Router>
     </DialogProvider>
   );
 }
