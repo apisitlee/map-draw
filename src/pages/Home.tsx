@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Grid, List as ListIcon, Search, ChevronDown, Check, File } from 'lucide-react';
+import { Plus, Grid, List as ListIcon, Search, ChevronDown, File } from 'lucide-react';
+import { api } from '../services/api';
+import { useDialog } from '../context/DialogContext';
 
 // 定义排序和视图的类型
 type SortMode = 'recentOpen' | 'recentCreate' | 'fileName';
@@ -8,6 +10,7 @@ type SortOrder = 'desc' | 'asc';
 type ViewMode = 'grid' | 'list';
 
 export const Home: React.FC = () => {
+    const { showToast } = useDialog();
     const navigate = useNavigate();
 
     // --- 状态管理 ---
@@ -21,13 +24,25 @@ export const Home: React.FC = () => {
     const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
     const projectMenuRef = useRef<HTMLDivElement>(null);
 
-    // 模拟的项目列表和文件列表数据
-    const allProjects = ['Project Alpha', 'Project Beta', 'Design System', 'File Assets'];
-    const mockFiles = [
-        { id: 'map_001', name: '示例地图 1', date: '2026-08-12', project: 'Project Alpha' },
-        { id: 'map_002', name: '示例地图 2', date: '2026-08-10', project: 'Project Beta' },
-        { id: 'map_003', name: '城市规划图', date: '2026-08-01', project: 'Project Alpha' },
-    ];
+    // 存储后端返回的真实数据
+    const [allProjects, setAllProjects] = useState<any[]>([]);
+    const [files, setFiles] = useState<any[]>([]);
+
+    // 组件加载时获取数据
+    useEffect(() => {
+        const loadData = async () => {
+            try {
+                const fetchedProjects = await api.getProjects();
+                const fetchedFiles = await api.getFiles();
+                setAllProjects(fetchedProjects);
+                setFiles(fetchedFiles);
+            } catch (error: any) {
+                console.error("获取数据失败:", error);
+                showToast(error?.message || '获取项目列表失败', 'error');
+            }
+        };
+        loadData();
+    }, []);
 
     // 处理下拉框点击外部关闭
     useEffect(() => {
@@ -58,7 +73,20 @@ export const Home: React.FC = () => {
         );
     };
 
+    const handleCreateFile = async () => {
+        try {
+            // 最近打开页面新建的文件，没有归属文件夹，相当于进入草稿箱
+            const res = await api.createFile({ name: '未命名文件', data: {} });
+            navigate(`/file/${res.id}`);
+        } catch (error: any) {
+            showToast(error?.message || '新建文件失败', 'error');
+        }
+    };
+
     const filteredProjects = allProjects.filter(p => p.toLowerCase().includes(projectSearchText.toLowerCase()));
+    const filteredProjectNames = allProjects
+        .map(p => p.name)
+        .filter(name => name.toLowerCase().includes(projectSearchText.toLowerCase()));
 
     return (
         <div className="min-h-full bg-[var(--bg-base)] text-[var(--text-main)] p-6 md:p-12 font-sans select-none">
@@ -69,7 +97,7 @@ export const Home: React.FC = () => {
                     <h1 className="text-4xl font-bold tracking-tight">所有文件</h1>
                     <p className="text-[var(--text-sub)] mt-2">管理你的所有地图和设计资源。</p>
                 </div>
-                <button className="flex items-center gap-2 px-5 py-2.5 bg-[var(--theme-primary)] text-white rounded-xl font-medium hover:bg-[var(--theme-primary-hover)] transition-colors shadow-lg shadow-[var(--theme-primary)]/30 disabled:opacity-50">
+                <button onClick={handleCreateFile} className="flex items-center gap-2 px-5 py-2.5 bg-[var(--theme-primary)] text-white rounded-xl font-medium hover:bg-[var(--theme-primary-hover)] transition-colors shadow-lg shadow-[var(--theme-primary)]/30 disabled:opacity-50">
                     <Plus className="w-5 h-5" /> 新建文件
                 </button>
             </header>
@@ -97,21 +125,21 @@ export const Home: React.FC = () => {
 
                     {/* 排序顺序选择 */}
                     {sortMode !== 'recentOpen' && (
-                        <div className="flex items-center gap-2 bg-[#3b0764] px-3 py-1.5 rounded-lg border ">
+                        <div className="flex items-center gap-2 bg-[var(--bg-panel)] px-3 py-1.5 rounded-lg border border-[var(--border-line)]">
                             <select
                                 value={sortOrder}
                                 onChange={(e) => setSortOrder(e.target.value as SortOrder)}
-                                className="bg-transparent text-sm text-white outline-none cursor-pointer"
+                                className="bg-transparent text-sm text-[var(--text-main)] outline-none cursor-pointer"
                             >
                                 {sortMode === 'recentCreate' ? (
                                     <>
-                                        <option value="desc" className="bg-[#2e1065]">从近到远</option>
-                                        <option value="asc" className="bg-[#2e1065]">从远到近</option>
+                                        <option value="desc" className="bg-[var(--bg-panel)]">从近到远</option>
+                                        <option value="asc" className="bg-[var(--bg-panel)]">从远到近</option>
                                     </>
                                 ) : (
                                     <>
-                                        <option value="asc" className="bg-[#2e1065]">升序 A-Z</option>
-                                        <option value="desc" className="bg-[#2e1065]">降序 Z-A</option>
+                                        <option value="asc" className="bg-[var(--bg-panel)]">升序 A-Z</option>
+                                        <option value="desc" className="bg-[var(--bg-panel)]">降序 Z-A</option>
                                     </>
                                 )}
                             </select>
@@ -170,24 +198,26 @@ export const Home: React.FC = () => {
             {/* Bento Grid 风格的文件列表 */}
             {viewMode === 'grid' ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 grid-flow-row-dense">
-                    {mockFiles.map((file, idx) => (
+                    {files.map((file) => (
                         <div
                             key={file.id}
                             onClick={() => navigate(`/file/${file.id}`)}
-                            className={`bg-[var(--bg-panel)] rounded-3xl p-6 cursor-pointer hover:-translate-y-1 hover:shadow-xl hover:shadow-[var(--theme-primary-shadow)] transition-all border border-[var(--border-line)] flex flex-col min-h-[220px]`}
+                            className="bg-[var(--bg-panel)] rounded-3xl p-6 cursor-pointer hover:-translate-y-1 hover:shadow-xl hover:shadow-[var(--theme-primary-shadow)] transition-all border border-[var(--border-line)] flex flex-col min-h-[220px]"
                         >
                             <div className="w-12 h-12 rounded-2xl bg-[var(--theme-primary)]/20 flex items-center justify-center mb-auto text-[var(--theme-primary)]">
                                 <File className="w-6 h-6" />
                             </div>
                             <h3 className="text-xl font-medium mt-4">{file.name}</h3>
-                            <p className="text-sm text-[var(--text-sub)] mt-1">{file.project}</p>
-                            <p className="text-xs text-[var(--text-sub)] opacity-70 mt-4">{file.date}</p>
+                            {/* 后端目前返回 id, name, is_starred，如果需要 project_id 可以后续在后端接口中加入并在这里展示 */}
+                            <p className="text-sm text-[var(--text-sub)] mt-1">
+                                {file.is_starred ? '已标星' : '默认项目'}
+                            </p>
                         </div>
                     ))}
                 </div>
             ) : (
                 <div className="flex flex-col gap-3">
-                    {mockFiles.map(file => (
+                    {files.map(file => (
                         <div
                             key={file.id}
                             onClick={() => navigate(`/file/${file.id}`)}

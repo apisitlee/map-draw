@@ -1,16 +1,22 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Plus, MoreVertical, Trash2, FolderInput, File } from 'lucide-react';
+import { api } from '../services/api'; // 引入 api
+import { useDialog } from '../context/DialogContext'; // 引入提示框
 
 export const ProjectDetails: React.FC = () => {
     const { projectId } = useParams<{ projectId: string }>();
     const navigate = useNavigate();
+    const { showToast } = useDialog();
     const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
 
-    const handleCreateFile = () => {
-        // 创建文件逻辑，成功后跳转
-        const newFileId = `proj_file_${Date.now()}`;
-        navigate(`/file/${newFileId}`);
+    const handleCreateFile = async () => {
+        try {
+            const res = await api.createFile({ name: '未命名文件', project_id: projectId, data: {} });
+            navigate(`/file/${res.id}`);
+        } catch (error: any) {
+            showToast(error?.message || '新建文件失败', 'error');
+        }
     };
 
     const handleDeleteFile = (fileId: string) => {

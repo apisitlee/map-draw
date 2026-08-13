@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
-    Home,
     Trash2,
     Plus,
     Folder,
@@ -10,9 +9,13 @@ import {
     HelpCircle,
     LogOut,
     ChevronUp,
-    FolderOpen,
-    File
+    File,
+    Clock,
+    Inbox,
+    ChevronDown,
+    ChevronRight
 } from 'lucide-react';
+import { Tooltip } from '../components/Tooltip';
 
 export const SidebarLayout: React.FC = () => {
     const navigate = useNavigate();
@@ -21,6 +24,17 @@ export const SidebarLayout: React.FC = () => {
     const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
     const [newProjectData, setNewProjectData] = useState({ name: '', description: '' });
     const [projectLogo, setProjectLogo] = useState<File | null>(null);
+    const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+
+    const toggleFolder = (e: React.MouseEvent, folderId: string) => {
+        e.stopPropagation();
+        setExpandedFolders(prev => {
+            const next = new Set(prev);
+            if (next.has(folderId)) next.delete(folderId);
+            else next.add(folderId);
+            return next;
+        });
+    };
 
     const generateRandomColor = () => {
         return '#' + Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0');
@@ -67,9 +81,48 @@ export const SidebarLayout: React.FC = () => {
 
     // 模拟项目列表数据
     const projects = [
-        { id: 'proj_alpha', name: 'Project Alpha' },
-        { id: 'proj_beta', name: 'Project Beta' },
+        { id: 'proj_alpha', name: 'UI设计工作空间', parent_id: null },
+        { id: 'proj_beta', name: '深色模式探索', parent_id: 'proj_alpha' },
     ];
+
+    // 递归渲染文件夹树的辅助函数
+    const renderFolderTree = (parentId: string | null = null, depth = 0) => {
+        const children = projects.filter(p => p.parent_id === parentId);
+        if (children.length === 0) return null;
+
+        return (
+            <div className="flex flex-col gap-1">
+                {children.map(proj => {
+                    const isExpanded = expandedFolders.has(proj.id);
+                    const hasChildren = projects.some(p => p.parent_id === proj.id);
+                    const isActive = location.pathname.includes(proj.id);
+
+                    return (
+                        <div key={proj.id} className="flex flex-col">
+                            <button
+                                onClick={() => navigate(`/project/${proj.id}`)}
+                                className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm font-medium transition-colors ${isActive ? 'bg-[var(--theme-primary)]/10 text-[var(--theme-primary)]' : 'text-[var(--text-sub)] hover:bg-black/5'}`}
+                                style={{ paddingLeft: `${0.5 + depth * 1}rem` }}
+                            >
+                                {/* 展开/收起图标 */}
+                                {hasChildren ? (
+                                    <span onClick={(e) => toggleFolder(e, proj.id)} className="cursor-pointer hover:bg-black/10 rounded p-0.5">
+                                        {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                                    </span>
+                                ) : (
+                                    <span className="w-4.5" /> // 占位符保持对齐
+                                )}
+                                <Folder className="w-4 h-4" />
+                                {proj.name}
+                            </button>
+                            {/* 只有展开时才递归渲染子节点 */}
+                            {isExpanded && renderFolderTree(proj.id, depth + 1)}
+                        </div>
+                    );
+                })}
+            </div>
+        );
+    };
 
     const handleLogout = () => {
         localStorage.removeItem('isAuthenticated');
@@ -94,28 +147,32 @@ export const SidebarLayout: React.FC = () => {
     };
 
     return (
-        <div className="flex h-screen w-screen bg-[#f2f2f7] overflow-hidden font-sans select-none">
+        <div className="flex h-screen w-screen bg-[var(--bg-base)] overflow-hidden font-sans select-none">
             {/* 左侧边栏 */}
-            <aside className="w-64 bg-white border-r border-black/10 flex flex-col justify-between h-full relative z-20">
+            <aside className="w-64 bg-[var(--bg-panel)] border-r border-[var(--border-line)] flex flex-col justify-between h-full relative z-20">
                 {/* 顶部区域 */}
                 <div className="p-4 flex flex-col gap-2 overflow-y-auto">
-                    {/* Logo + Site Title */}
                     <div className="flex items-center gap-3 px-2 mb-6 cursor-pointer" onClick={() => navigate('/files/home')}>
-                        {/* 使用根目录下的 logo.png */}
                         <img src="/logo.png" alt="Map Draw Logo" className="w-8 h-8 rounded-lg object-contain" />
-                        <span className="font-bold text-lg text-[#1c1c1e]">Map Draw</span>
+                        <span className="font-bold text-lg text-[var(--text-main)]">Map Draw</span>
                     </div>
 
                     {/* 主菜单 */}
                     <button
                         onClick={() => navigate('/files/home')}
-                        className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-colors ${location.pathname.includes('/files/home') ? 'bg-[#007AFF]/10 text-[#007AFF]' : 'text-[#3c3c43] hover:bg-black/5'}`}
+                        className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${location.pathname.includes('/files/home') ? 'bg-[var(--theme-primary)]/10 text-[var(--theme-primary)]' : 'text-[var(--text-sub)] hover:bg-black/5'}`}
                     >
-                        <Home className="w-4 h-4" /> 主页
+                        <Clock className="w-4 h-4" /> 最近打开
+                    </button>
+                    <button
+                        onClick={() => navigate('/files/drafts')}
+                        className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${location.pathname.includes('/files/drafts') ? 'bg-[var(--theme-primary)]/10 text-[var(--theme-primary)]' : 'text-[var(--text-sub)] hover:bg-black/5'}`}
+                    >
+                        <Inbox className="w-4 h-4" /> 草稿箱
                     </button>
                     <button
                         onClick={() => navigate('/files/trash')}
-                        className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-colors ${location.pathname.includes('/files/trash') ? 'bg-[#007AFF]/10 text-[#007AFF]' : 'text-[#3c3c43] hover:bg-black/5'}`}
+                        className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${location.pathname.includes('/files/trash') ? 'bg-[var(--theme-primary)]/10 text-[var(--theme-primary)]' : 'text-[var(--text-sub)] hover:bg-black/5'}`}
                     >
                         <Trash2 className="w-4 h-4" /> 回收站
                     </button>
@@ -136,30 +193,17 @@ export const SidebarLayout: React.FC = () => {
                         ))}
                     </div>
 
-                    {/* 项目列表 */}
-                    <div className="px-2 text-xs font-semibold text-[#8e8e93] mb-2 mt-2">项目</div>
-                    <div className="flex flex-col gap-1">
-                        {projects.map(proj => (
-                            <button
-                                key={proj.id}
-                                onClick={() => navigate(`/project/${proj.id}`)}
-                                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${location.pathname.includes(proj.id) ? 'bg-[#007AFF]/10 text-[#007AFF]' : 'text-[#3c3c43] hover:bg-black/5'}`}
-                            >
-                                {
-                                    location.pathname.includes(proj.id) ? <FolderOpen className="w-4 h-4" /> : <Folder className="w-4 h-4" />
-                                }
-                                {proj.name}
+                    {/* 工作空间 */}
+                    <div className="px-2 text-xs font-semibold text-[var(--text-info)] mb-2 mt-2 flex items-center justify-between">
+                        工作空间
+                        <Tooltip content="新建文件夹" placement="bottom">
+                            <button onClick={() => setIsNewProjectModalOpen(true)} className="hover:text-[var(--text-main)]">
+                                <Plus className="w-3.5 h-3.5" />
                             </button>
-                        ))}
+                        </Tooltip>
                     </div>
-
-                    {/* 新建项目按钮 */}
-                    <button
-                        onClick={() => setIsNewProjectModalOpen(true)}
-                        className="flex items-center gap-3 px-3 py-2 mt-2 rounded-lg text-sm font-medium text-[var(--text-sub)] hover:text-[var(--text-main)] hover:bg-[var(--bg-base)]"
-                    >
-                        <Plus className="w-4 h-4" /> 新建项目
-                    </button>
+                    {/* 渲染嵌套文件夹树 */}
+                    {renderFolderTree(null)}
                 </div>
 
                 {/* 底部用户模块 */}

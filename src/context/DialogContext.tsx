@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { AlertCircle, HelpCircle, CheckCircle, X } from 'lucide-react';
+import { AlertCircle, HelpCircle, CheckCircle, X, Info } from 'lucide-react';
 
 interface DialogState {
     isOpen: boolean;
@@ -11,10 +11,17 @@ interface DialogState {
     onCancel?: () => void;
 }
 
+interface ToastState {
+    id: number;
+    message: string;
+    type: 'success' | 'error' | 'info' | 'warning';
+}
+
 interface DialogContextType {
     showAlert: (message: string, title?: string) => void;
     showConfirm: (message: string, onConfirm: () => void, title?: string) => void;
     showPrompt: (message: string, defaultValue: string, onConfirm: (val?: string) => void, title?: string) => void;
+    showToast: (message: string, type?: 'success' | 'error' | 'info' | 'warning') => void;
 }
 
 const DialogContext = createContext<DialogContextType | null>(null);
@@ -28,6 +35,7 @@ export const useDialog = () => {
 export const DialogProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [dialog, setDialog] = useState<DialogState>({ isOpen: false, type: 'alert', title: '', message: '' });
     const [promptValue, setPromptValue] = useState('');
+    const [toasts, setToasts] = useState<ToastState[]>([]);
 
     const close = () => setDialog((prev) => ({ ...prev, isOpen: false }));
 
@@ -44,6 +52,14 @@ export const DialogProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         setDialog({ isOpen: true, type: 'prompt', title, message, defaultValue, onConfirm, onCancel: close });
     };
 
+    const showToast = (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => {
+        const id = Date.now();
+        setToasts((prev) => [...prev, { id, message, type }]);
+        setTimeout(() => {
+            setToasts((prev) => prev.filter((t) => t.id !== id));
+        }, 3000);
+    };
+
     const handleConfirm = () => {
         if (dialog.onConfirm) {
             dialog.type === 'prompt' ? dialog.onConfirm(promptValue) : dialog.onConfirm();
@@ -52,8 +68,28 @@ export const DialogProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     };
 
     return (
-        <DialogContext.Provider value={{ showAlert, showConfirm, showPrompt }}>
+        <DialogContext.Provider value={{ showAlert, showConfirm, showPrompt, showToast }}>
             {children}
+            {/* Toast 容器 */}
+            <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[10000] flex flex-col gap-2 pointer-events-none">
+                {toasts.map((t) => (
+                    <div
+                        key={t.id}
+                        className={`pointer-events-auto px-4 py-2 rounded-xl shadow-xl border text-xs font-medium flex items-center gap-2 backdrop-blur-xl animate-fade-in transition-all ${t.type === 'error' ? 'bg-red-500/90 text-white border-red-600' :
+                            t.type === 'success' ? 'bg-emerald-500/90 text-white border-emerald-600' :
+                                t.type === 'warning' ? 'bg-amber-500/90 text-white border-amber-600' :
+                                    'bg-white/90 text-[#1c1c1e] border-black/10'
+                            }`}
+                    >
+                        {t.type === 'error' && <AlertCircle className="w-4 h-4 shrink-0" />}
+                        {t.type === 'success' && <CheckCircle className="w-4 h-4 shrink-0" />}
+                        {t.type === 'warning' && <Info className="w-4 h-4 shrink-0" />}
+                        {t.type === 'info' && <Info className="w-4 h-4 shrink-0" />}
+                        <span>{t.message}</span>
+                    </div>
+                ))}
+            </div>
+            {/* 模态框 */}
             {dialog.isOpen && (
                 <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm transition-opacity">
                     <div className="w-[320px] bg-white/95 backdrop-blur-2xl rounded-2xl shadow-2xl border border-white/80 p-5 flex flex-col gap-4">

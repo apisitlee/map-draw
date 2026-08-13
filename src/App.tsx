@@ -16,6 +16,7 @@ import { AssetPanel } from './components/AssetPanel';
 import { BrowserRouter as Router, Routes, Route, Navigate, useParams } from 'react-router-dom';
 // 引入新建的页面组件
 import { Home } from './pages/Home';
+import { Drafts } from './pages/Drafts';
 import { ProjectDetails } from './pages/ProjectDetails';
 import { Landing } from './pages/Landing';
 import { Login } from './pages/Login';
@@ -25,9 +26,10 @@ import { SidebarLayout } from './layouts/SidebarLayout';
 
 // 简易的路由守卫组件
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // 实际项目中请替换为你的真实鉴权逻辑 (如 Context, Redux, 或者真实的 Token 校验)
   const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true';
-  if (!isAuthenticated) {
+  const hasToken = localStorage.getItem('token') !== null;
+
+  if (!isAuthenticated || !hasToken) {
     return <Navigate to="/login" replace />;
   }
   return <>{children}</>;
@@ -214,6 +216,7 @@ export default function App() {
             }
           >
             <Route path="/files/home" element={<Home />} />
+            <Route path="/files/drafts" element={<Drafts />} />
             <Route path="/files/trash" element={<Trash />} />
             <Route path="/project/:projectId" element={<ProjectDetails />} />
             <Route path="/help" element={<Help />} />
