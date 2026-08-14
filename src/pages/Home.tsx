@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Grid, List as ListIcon, Search, ChevronDown, File } from 'lucide-react';
+import { Plus, Grid, List as ListIcon, Search, ChevronDown, File, Star } from 'lucide-react';
 import { api } from '../services/api';
 import { useDialog } from '../context/DialogContext';
+import { FileContextMenu } from '../components/FileContextMenu';
 
 // 定义排序和视图的类型
 type SortMode = 'recentOpen' | 'recentCreate' | 'fileName';
@@ -12,6 +13,8 @@ type ViewMode = 'grid' | 'list';
 export const Home: React.FC = () => {
     const { showToast } = useDialog();
     const navigate = useNavigate();
+
+    const [contextMenu, setContextMenu] = useState<{ visible: boolean, x: number, y: number, file: any | null }>({ visible: false, x: 0, y: 0, file: null });
 
     // --- 状态管理 ---
     const [viewMode, setViewMode] = useState<ViewMode>('grid');
@@ -28,19 +31,19 @@ export const Home: React.FC = () => {
     const [allProjects, setAllProjects] = useState<any[]>([]);
     const [files, setFiles] = useState<any[]>([]);
 
+    const loadData = async () => {
+        try {
+            const fetchedProjects = await api.getProjects();
+            const fetchedFiles = await api.getFiles();
+            setAllProjects(fetchedProjects);
+            setFiles(fetchedFiles);
+        } catch (error: any) {
+            console.error("获取数据失败:", error);
+            showToast(error?.message || '获取项目列表失败', 'error');
+        }
+    };
     // 组件加载时获取数据
     useEffect(() => {
-        const loadData = async () => {
-            try {
-                const fetchedProjects = await api.getProjects();
-                const fetchedFiles = await api.getFiles();
-                setAllProjects(fetchedProjects);
-                setFiles(fetchedFiles);
-            } catch (error: any) {
-                console.error("获取数据失败:", error);
-                showToast(error?.message || '获取项目列表失败', 'error');
-            }
-        };
         loadData();
     }, []);
 
@@ -83,10 +86,22 @@ export const Home: React.FC = () => {
         }
     };
 
-    const filteredProjects = allProjects.filter(p => p.toLowerCase().includes(projectSearchText.toLowerCase()));
-    const filteredProjectNames = allProjects
-        .map(p => p.name)
-        .filter(name => name.toLowerCase().includes(projectSearchText.toLowerCase()));
+    const handleContextMenu = (e: React.MouseEvent, file: any) => {
+        e.preventDefault();
+        setContextMenu({ visible: true, x: e.clientX, y: e.clientY, file });
+    };
+
+    const handleToggleStar = async (e: React.MouseEvent, file: any) => {
+        e.stopPropagation(); // 阻止冒泡，防止触发卡片点击进入地图页面
+        try {
+            await api.starFile(file.id);
+            loadData(); // 重新加载数据更新状态
+        } catch (error: any) {
+            showToast(error?.message || '星标操作失败', 'error');
+        }
+    };
+
+    const filteredProjects = allProjects.filter(p => p.name.toLowerCase().includes(projectSearchText.toLowerCase()));
 
     return (
         <div className="min-h-full bg-[var(--bg-base)] text-[var(--text-main)] p-6 md:p-12 font-sans select-none">
@@ -195,22 +210,32 @@ export const Home: React.FC = () => {
                 </div>
             </div>
 
-            {/* Bento Grid 风格的文件列表 */}
+            {/* Grid 风格的文件列表 */}
             {viewMode === 'grid' ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 grid-flow-row-dense">
                     {files.map((file) => (
                         <div
                             key={file.id}
                             onClick={() => navigate(`/file/${file.id}`)}
-                            className="bg-[var(--bg-panel)] rounded-3xl p-6 cursor-pointer hover:-translate-y-1 hover:shadow-xl hover:shadow-[var(--theme-primary-shadow)] transition-all border border-[var(--border-line)] flex flex-col min-h-[220px]"
+                            onContextMenu={(e) => handleContextMenu(e, file)}
+                            className="group relative bg-[var(--bg-panel)] rounded-3xl p-6 cursor-pointer hover:shadow-xl hover:shadow-[var(--theme-primary-shadow)] transition-all border border-[var(--border-line)] flex flex-col min-h-[220px]"
                         >
+                            {/* 右上角星标按钮 */}
+                            <button
+                                onClick={(e) => handleToggleStar(e, file)}
+                                className={`absolute top-5 right-5 p-1.5 rounded-lg transition-all duration-200 ${file.is_starred
+                                    ? 'opacity-100 text-yellow-400'
+                                    : 'opacity-0 group-hover:opacity-100 text-[var(--text-sub)] hover:bg-black/5 hover:text-[var(--text-main)]'
+                                    }`}
+                            >
+                                <Star className={`w-5 h-5 ${file.is_starred ? 'fill-yellow-400' : ''}`} />
+                            </button>
                             <div className="w-12 h-12 rounded-2xl bg-[var(--theme-primary)]/20 flex items-center justify-center mb-auto text-[var(--theme-primary)]">
                                 <File className="w-6 h-6" />
                             </div>
                             <h3 className="text-xl font-medium mt-4">{file.name}</h3>
-                            {/* 后端目前返回 id, name, is_starred，如果需要 project_id 可以后续在后端接口中加入并在这里展示 */}
-                            <p className="text-sm text-[var(--text-sub)] mt-1">
-                                {file.is_starred ? '已标星' : '默认项目'}
+                            <p className="text-sm text-[var(--text-info)] mt-1">
+                                更新于 {file.updated_at || '刚刚'}
                             </p>
                         </div>
                     ))}
@@ -221,6 +246,7 @@ export const Home: React.FC = () => {
                         <div
                             key={file.id}
                             onClick={() => navigate(`/file/${file.id}`)}
+                            onContextMenu={(e) => handleContextMenu(e, file)}
                             className="flex items-center justify-between bg-[var(--bg-panel)] rounded-xl p-4 cursor-pointer transition-colors border border-[var(--border-line)]"
                         >
                             <div className="flex items-center gap-4">
@@ -236,6 +262,16 @@ export const Home: React.FC = () => {
                         </div>
                     ))}
                 </div>
+            )}
+
+            {contextMenu.visible && (
+                <FileContextMenu
+                    file={contextMenu.file}
+                    x={contextMenu.x}
+                    y={contextMenu.y}
+                    onClose={() => setContextMenu({ ...contextMenu, visible: false })}
+                    onRefresh={loadData}
+                />
             )}
         </div>
     );

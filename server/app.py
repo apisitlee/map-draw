@@ -153,11 +153,14 @@ def handle_projects():
         projects = Project.query.filter_by(user_id=user_id, is_deleted=False).all()
         return jsonify([{'id': p.id, 'name': p.name} for p in projects]), 200
 
-@app.route('/api/projects/<int:project_id>', methods=['PUT', 'DELETE'])
+@app.route('/api/projects/<int:project_id>', methods=['GET', 'PUT', 'DELETE'])
 @jwt_required()
 def update_or_delete_project(project_id):
     user_id = get_jwt_identity()
     project = Project.query.filter_by(id=project_id, user_id=user_id).first_or_404()
+
+    if request.method == 'GET':
+        return jsonify({'id': project.id, 'name': project.name, 'parent_id': project.parent_id})
     
     if request.method == 'PUT':
         project.name = request.json.get('name', project.name)
@@ -214,13 +217,22 @@ def handle_files():
         if project_id:
             query = query.filter_by(project_id=project_id)
         files = query.all()
-        return jsonify([{'id': f.id, 'name': f.name, 'is_starred': f.is_starred} for f in files]), 200
+        return jsonify([{'id': f.id, 'name': f.name, 'is_starred': f.is_starred, 'updated_at': f.updated_at.strftime('%Y-%m-%d %H:%M') if f.updated_at else f.created_at.strftime('%Y-%m-%d %H:%M')} for f in files]), 200
 
-@app.route('/api/files/<int:file_id>', methods=['PUT', 'DELETE'])
+@app.route('/api/files/<int:file_id>', methods=['GET', 'PUT', 'DELETE'])
 @jwt_required()
 def update_or_delete_file(file_id):
     user_id = get_jwt_identity()
     file = File.query.filter_by(id=file_id, user_id=user_id).first_or_404()
+
+    if request.method == 'GET':
+        return jsonify({
+            'id': file.id, 
+            'name': file.name, 
+            'data': json.loads(file.data) if file.data else {}, 
+            'project_id': file.project_id,
+            'is_starred': file.is_starred
+        })
     
     if request.method == 'PUT':
         data = request.json
@@ -278,7 +290,32 @@ def get_draft_files():
     user_id = get_jwt_identity()
     # 草稿箱定义：没有被移动到任何文件夹（project_id 为 None），且未被删除
     drafts = File.query.filter_by(user_id=user_id, project_id=None, is_deleted=False).all()
-    return jsonify([{'id': f.id, 'name': f.name, 'is_starred': f.is_starred} for f in drafts]), 200
+    return jsonify([{'id': f.id, 'name': f.name, 'is_starred': f.is_starred, 'updated_at': f.updated_at.strftime('%Y-%m-%d %H:%M') if f.updated_at else f.created_at.strftime('%Y-%m-%d %H:%M')} for f in drafts]), 200
+
+@app.route('/api/files/trash', methods=['GET'])
+@jwt_required()
+def get_trash_files():
+    user_id = get_jwt_identity()
+    # 获取回收站中的文件 (is_deleted=True)
+    trash_files = File.query.filter_by(user_id=user_id, is_deleted=True).all()
+    return jsonify([{'id': f.id, 'name': f.name, 'is_starred': f.is_starred, 'updated_at': f.updated_at.strftime('%Y-%m-%d %H:%M') if f.updated_at else f.created_at.strftime('%Y-%m-%d %H:%M')} for f in trash_files]), 200
+
+@app.route('/api/files/trash/empty', methods=['DELETE'])
+@jwt_required()
+def empty_trash():
+    user_id = get_jwt_identity()
+    # 彻底删除所有在回收站中的文件
+    File.query.filter_by(user_id=user_id, is_deleted=True).delete()
+    db.session.commit()
+    return jsonify({'message': '回收站已清空'}), 200
+
+@app.route('/api/files/starred', methods=['GET'])
+@jwt_required()
+def get_starred_files():
+    user_id = get_jwt_identity()
+    # 获取已星标且未删除的文件
+    starred = File.query.filter_by(user_id=user_id, is_starred=True, is_deleted=False).all()
+    return jsonify([{'id': f.id, 'name': f.name, 'is_starred': f.is_starred, 'updated_at': f.updated_at.strftime('%Y-%m-%d %H:%M') if f.updated_at else f.created_at.strftime('%Y-%m-%d %H:%M')} for f in starred]), 200
 
 # ==========================================
 # 5. File Versions: 文件版本控制记录

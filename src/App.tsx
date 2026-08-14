@@ -17,6 +17,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useParams } from 'rea
 // 引入新建的页面组件
 import { Home } from './pages/Home';
 import { Drafts } from './pages/Drafts';
+import { Workspaces } from './pages/Workspaces';
 import { ProjectDetails } from './pages/ProjectDetails';
 import { Landing } from './pages/Landing';
 import { Login } from './pages/Login';
@@ -216,6 +217,7 @@ export default function App() {
             }
           >
             <Route path="/files/home" element={<Home />} />
+            <Route path="/workspace" element={<Workspaces />} />
             <Route path="/files/drafts" element={<Drafts />} />
             <Route path="/files/trash" element={<Trash />} />
             <Route path="/project/:projectId" element={<ProjectDetails />} />

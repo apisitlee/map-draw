@@ -44,18 +44,32 @@ async function fetchWithAuth(endpoint: string, options: RequestInit = {}) {
     }
 }
 
-// 具体的接口调用函数
+// 接口调用函数
 export const api = {
     login: (data: any) => fetchWithAuth('/auth/login', { method: 'POST', body: JSON.stringify(data) }),
     register: (data: any) => fetchWithAuth('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
 
-    getProjects: () => fetchWithAuth('/projects'),
+    // --- 项目(工作空间)相关 ---
     createProject: (data: any) => fetchWithAuth('/projects', { method: 'POST', body: JSON.stringify(data) }),
+    updateProject: (id: string | number, data: any) => fetchWithAuth(`/projects/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    deleteProject: (id: string | number) => fetchWithAuth(`/projects/${id}`, { method: 'DELETE' }),
+    getProjects: () => fetchWithAuth('/projects'),
+    getProject: (id: string | number) => fetchWithAuth(`/projects/${id}`),
 
-    getFiles: (projectId?: string) => {
-        const query = projectId ? `?project_id=${projectId}` : '';
-        return fetchWithAuth(`/files${query}`);
-    },
-    getDraftFiles: () => fetchWithAuth('/files/drafts'),
+    // --- 文件相关 ---
     createFile: (data: any) => fetchWithAuth('/files', { method: 'POST', body: JSON.stringify(data) }),
+    deleteFile: (id: string | number) => fetchWithAuth(`/files/${id}`, { method: 'DELETE' }),
+    updateFile: (id: string | number, data: any) => fetchWithAuth(`/files/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    getFiles: (projectId?: string) => fetchWithAuth(`/files${projectId ? `?project_id=${projectId}` : ''}`),
+    getFile: (id: string | number) => fetchWithAuth(`/files/${id}`),
+    getDraftFiles: () => fetchWithAuth('/files/drafts'),
+    starFile: (id: string | number) => fetchWithAuth(`/files/${id}/star`, { method: 'PUT' }),
+    moveFile: (fileId: string | number, projectId: string | number) => fetchWithAuth(`/files/${fileId}/move`, { method: 'PUT', body: JSON.stringify({ project_id: projectId }) }),
+
+    // --- 回收站与星标文件 ---
+    getTrashFiles: () => fetchWithAuth('/files/trash'),
+    getStarredFiles: () => fetchWithAuth('/files/starred'),
+    restoreFile: (id: string | number) => fetchWithAuth(`/files/${id}/restore`, { method: 'POST' }),
+    hardDeleteFile: (id: string | number) => fetchWithAuth(`/files/${id}/hard_delete`, { method: 'DELETE' }),
+    emptyTrash: () => fetchWithAuth('/files/trash/empty', { method: 'DELETE' }),
 };

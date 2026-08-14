@@ -16,15 +16,48 @@ import {
     ChevronRight
 } from 'lucide-react';
 import { Tooltip } from '../components/Tooltip';
+import { api } from '../services/api';
+import { useDialog } from '../context/DialogContext';
 
 export const SidebarLayout: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
+    const { showToast } = useDialog();
+
     const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
     const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
     const [newProjectData, setNewProjectData] = useState({ name: '', description: '' });
     const [projectLogo, setProjectLogo] = useState<File | null>(null);
     const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+
+    const [projects, setProjects] = useState<any[]>([]);
+    const [starredFiles, setStarredFiles] = useState<any[]>([]);
+
+    // 组件首次渲染时自动加载项目数据
+    useEffect(() => {
+        loadProjects();
+        loadStarredFiles();
+    }, []);
+
+    const loadProjects = async () => {
+        try {
+            const data = await api.getProjects();
+            console.log("获取项目列表", data);
+            setProjects(data);
+        } catch (err: any) {
+            showToast(err.message || '加载项目列表失败', 'error');
+        }
+    };
+
+    const loadStarredFiles = async () => {
+        try {
+            const data = await api.getStarredFiles();
+            setStarredFiles(data);
+        } catch (err: any) {
+            // 静默处理或使用 showToast
+            console.error("加载星标文件失败", err);
+        }
+    };
 
     const toggleFolder = (e: React.MouseEvent, folderId: string) => {
         e.stopPropagation();
@@ -56,38 +89,36 @@ export const SidebarLayout: React.FC = () => {
         }
     };
 
-    const submitNewProject = () => {
+    const submitNewProject = async () => {
         if (!newProjectData.name.trim()) {
-            alert('项目名称为必填项！');
+            showToast('项目名称不能为空', 'warning');
             return;
         }
-        const finalProject = {
-            name: newProjectData.name,
-            description: newProjectData.description,
-            logoFile: projectLogo,
-            defaultColor: generateRandomColor() // 系统自动分配颜色
-        };
-        console.log('新建项目数据：', finalProject);
-        setIsNewProjectModalOpen(false);
-        // 重置状态...
+
+        try {
+            await api.createProject({
+                name: newProjectData.name,
+                // 后端表结构中支持嵌套，若需要可在未来扩展 parent_id 参数
+                // parent_id: null 
+            });
+
+            showToast('项目创建成功', 'success');
+            setIsNewProjectModalOpen(false);
+            setNewProjectData({ name: '', description: '' });
+            loadProjects(); // 创建完毕后自动拉取最新目录树
+        } catch (err: any) {
+            showToast(err.message || '创建项目失败', 'error');
+        }
     };
 
     const userMenuRef = useRef<HTMLDivElement>(null);
 
-    // 模拟星标数据
-    const starredFiles = [
-        { id: 'file_0', name: 'file 0' }
-    ];
-
-    // 模拟项目列表数据
-    const projects = [
-        { id: 'proj_alpha', name: 'UI设计工作空间', parent_id: null },
-        { id: 'proj_beta', name: '深色模式探索', parent_id: 'proj_alpha' },
-    ];
-
     // 递归渲染文件夹树的辅助函数
     const renderFolderTree = (parentId: string | null = null, depth = 0) => {
-        const children = projects.filter(p => p.parent_id === parentId);
+        let children = projects.filter(p => p.parent_id === parentId);
+        if (parentId === null) {
+            children = projects.filter(p => !p.parent_id);
+        }
         if (children.length === 0) return null;
 
         return (
@@ -126,6 +157,7 @@ export const SidebarLayout: React.FC = () => {
 
     const handleLogout = () => {
         localStorage.removeItem('isAuthenticated');
+        localStorage.removeItem('token'); // 确保注销时将 jwt token 一并清除
         navigate('/login');
     };
 
@@ -165,6 +197,12 @@ export const SidebarLayout: React.FC = () => {
                         <Clock className="w-4 h-4" /> 最近打开
                     </button>
                     <button
+                        onClick={() => navigate('/workspace')}
+                        className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${location.pathname.includes('/workspace') ? 'bg-[var(--theme-primary)]/10 text-[var(--theme-primary)]' : 'text-[var(--text-sub)] hover:bg-black/5'}`}
+                    >
+                        <Folder className="w-4 h-4" /> 工作空间
+                    </button>
+                    <button
                         onClick={() => navigate('/files/drafts')}
                         className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${location.pathname.includes('/files/drafts') ? 'bg-[var(--theme-primary)]/10 text-[var(--theme-primary)]' : 'text-[var(--text-sub)] hover:bg-black/5'}`}
                     >
@@ -180,30 +218,24 @@ export const SidebarLayout: React.FC = () => {
                     <div className="h-[1px] bg-black/10 my-2 mx-2" />
 
                     {/* 星标项目 */}
-                    <div className="px-2 text-xs font-semibold text-[#8e8e93] mb-2 mt-2">星标</div>
-                    <div className="flex flex-col gap-1">
-                        {starredFiles.map(item => (
-                            <button
-                                key={item.id}
-                                onClick={() => navigate(`/file/${item.id}`)}
-                                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors text-[#3c3c43] hover:bg-black/5`}
-                            >
-                                <File className="w-4 h-4" /> {item.name}
-                            </button>
-                        ))}
-                    </div>
-
-                    {/* 工作空间 */}
-                    <div className="px-2 text-xs font-semibold text-[var(--text-info)] mb-2 mt-2 flex items-center justify-between">
-                        工作空间
-                        <Tooltip content="新建文件夹" placement="bottom">
-                            <button onClick={() => setIsNewProjectModalOpen(true)} className="hover:text-[var(--text-main)]">
-                                <Plus className="w-3.5 h-3.5" />
-                            </button>
-                        </Tooltip>
-                    </div>
-                    {/* 渲染嵌套文件夹树 */}
-                    {renderFolderTree(null)}
+                    {
+                        starredFiles.length > 0 && (
+                            <>
+                                <div className="px-2 text-xs font-semibold text-[#8e8e93] mb-2 mt-2">星标</div>
+                                <div className="flex flex-col gap-1">
+                                    {starredFiles.map(item => (
+                                        <button
+                                            key={item.id}
+                                            onClick={() => navigate(`/file/${item.id}`)}
+                                            className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors text-[#3c3c43] hover:bg-black/5`}
+                                        >
+                                            <File className="w-4 h-4" /> {item.name}
+                                        </button>
+                                    ))}
+                                </div>
+                            </>
+                        )
+                    }
                 </div>
 
                 {/* 底部用户模块 */}

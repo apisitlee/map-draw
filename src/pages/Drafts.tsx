@@ -3,21 +3,29 @@ import { useNavigate } from 'react-router-dom';
 import { File, Inbox, Plus } from 'lucide-react';
 import { api } from '../services/api';
 import { useDialog } from '../context/DialogContext';
+import { FileContextMenu } from '../components/FileContextMenu';
 
 export const Drafts: React.FC = () => {
     const { showToast } = useDialog();
     const navigate = useNavigate();
     const [draftFiles, setDraftFiles] = useState<any[]>([]);
 
+    const [contextMenu, setContextMenu] = useState<{ visible: boolean, x: number, y: number, file: any | null }>({ visible: false, x: 0, y: 0, file: null });
+
+    const handleContextMenu = (e: React.MouseEvent, file: any) => {
+        e.preventDefault();
+        setContextMenu({ visible: true, x: e.clientX, y: e.clientY, file });
+    };
+
+    const loadDrafts = async () => {
+        try {
+            const files = await api.getDraftFiles();
+            setDraftFiles(files);
+        } catch (error: any) {
+            showToast(error?.message || '加载草稿箱失败', 'error');
+        }
+    };
     useEffect(() => {
-        const loadDrafts = async () => {
-            try {
-                const files = await api.getDraftFiles();
-                setDraftFiles(files);
-            } catch (error: any) {
-                showToast(error?.message || '加载草稿箱失败', 'error');
-            }
-        };
         loadDrafts();
     }, []);
 
@@ -55,15 +63,29 @@ export const Drafts: React.FC = () => {
                         <div
                             key={file.id}
                             onClick={() => navigate(`/file/${file.id}`)}
+                            onContextMenu={(e) => handleContextMenu(e, file)}
                             className="bg-[var(--bg-panel)] rounded-lg p-6 cursor-pointer hover:-translate-y-1 hover:shadow-lg transition-all border border-[var(--border-line)] flex flex-col min-h-[200px]"
                         >
                             <div className="w-12 h-12 rounded-lg bg-[var(--bg-base)]/10 flex items-center justify-center mb-auto text-[var(--theme-primary)]">
                                 <File className="w-6 h-6" />
                             </div>
                             <h3 className="text-lg font-medium mt-4">{file.name}</h3>
+                            <p className="text-sm text-[var(--text-info)] mt-1">
+                                更新于 {file.updated_at || '刚刚'}
+                            </p>
                         </div>
                     ))}
                 </div>
+            )}
+
+            {contextMenu.visible && (
+                <FileContextMenu
+                    file={contextMenu.file}
+                    x={contextMenu.x}
+                    y={contextMenu.y}
+                    onClose={() => setContextMenu({ ...contextMenu, visible: false })}
+                    onRefresh={loadDrafts}
+                />
             )}
         </div>
     );
